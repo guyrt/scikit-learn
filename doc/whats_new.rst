@@ -7,6 +7,9 @@
 
 Changelog
 ---------
+   - New estimators :class:`linear_model.PassiveAggressiveClassifier` and
+     :class:`linear_model.PassiverAggressiveRegressor` by `Rob Zinkov` and
+     `Mathieu Blondel`_.
 
    - The table of contents has now been made expandible (on the
      index page) - by Jaques Grobler.
@@ -38,14 +41,42 @@ Changelog
      of several transformers by `Andreas Müller`_.
 
    - Faster and more robust :func:`metrics.confusion_matrix` and
-     :ref:`clustering_evaluation`_ by Wei Li.
+     :ref:`clustering_evaluation` by Wei Li.
 
    - New estimator :class:`decomposition.FactorAnalysis` by
      `Christian Osendorfer`_ and `Alexandre Gramfort`_
 
+   - :func:`datasets.make_circles` now has the same number of inner and outer points.
+
+   - :func:`cross_validation.cross_val_score` now works with precomputed kernels
+     and affinity matrices, by `Andreas Müller`_.
+
+   - LARS algorithm made more numerically stable with heuristics to drop
+     regressors too correlated as well as to stop the path when
+     numerical noise becomes predominant, by `Gael Varoquaux`_.
+
+   - New estimator :class:`preprocessing.OneHotEncoder` to compute
+     binary encodings of categorical features by `Andreas Müller`_.
+
+   - Faster implementation of :func:`metrics.precision_recall_curve` by Conrad Lee.
+
 
 API changes summary
 -------------------
+   - Renamed all occurences of ``n_atoms`` to ``n_components`` for consistency.
+     This applies to :class:`dic_learning.DictionaryLearning`,
+     :class:`dic_learning.MiniBatchDictionaryLearning`,
+     :func:'dic_learning.dict_learning', :func:'dic_learning.dict_learning_online'
+
+   - Renamed all occurences of ``max_iters`` to ``max_iter`` for consistency.
+     This applies to :class:`label_propagation.BaseLabelPropagation`,
+     'label_propagation.LabelSpreading'
+
+   - Renamed all occurences of ``learn_rate`` to ``learning_rate`` for consistency.
+     This applies to :class:`gradient_boosting.LossFunction`,
+     :class:`gradient_boosting.LeastSquaresError`,
+     :class:'gradient_boosting.BaseGradientBoosting',
+     :class:'gradient_boosting.GradientBoostingRegressor'
 
    - The module ``sklearn.linear_model.sparse`` is gone. Sparse matrix support
      was already integrated into the "regular" linear models.
@@ -82,6 +113,9 @@ API changes summary
      :class:`linear_model.ElasticNet` and ``(1-rho)`` in
      :class:`linear_model.SGDClassifier`,
 
+   - :class:`linear_model.LassoLars` and :class:`linear_model.Lars` now
+     store a list of paths in the case of multiple targets, rather than
+     an array of paths.
 
 .. _changes_0_12.1:
 
