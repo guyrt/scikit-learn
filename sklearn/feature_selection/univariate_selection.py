@@ -43,7 +43,7 @@ def f_oneway(*args):
     """Performs a 1-way ANOVA.
 
     The one-way ANOVA tests the null hypothesis that 2 or more groups have
-    the same population mean.  The test is applied to samples from two or
+    the same population mean. The test is applied to samples from two or
     more groups, possibly with differing sizes.
 
     Parameters
@@ -54,9 +54,9 @@ def f_oneway(*args):
     Returns
     -------
     F-value : float
-        The computed F-value of the test
+        The computed F-value of the test.
     p-value : float
-        The associated p-value from the F-distribution
+        The associated p-value from the F-distribution.
 
     Notes
     -----
@@ -92,7 +92,7 @@ def f_oneway(*args):
     n_samples_per_class = np.array([a.shape[0] for a in args])
     n_samples = np.sum(n_samples_per_class)
     ss_alldata = reduce(lambda x, y: x + y,
-            [safe_sqr(a).sum(axis=0) for a in args])
+                        [safe_sqr(a).sum(axis=0) for a in args])
     sums_args = [a.sum(axis=0) for a in args]
     square_of_sums_alldata = safe_sqr(reduce(lambda x, y: x + y, sums_args))
     square_of_sums_args = [safe_sqr(s) for s in sums_args]
@@ -119,16 +119,18 @@ def f_classif(X, y):
     Parameters
     ----------
     X : {array-like, sparse matrix} shape = [n_samples, n_features]
-        The set of regressors that will tested sequentially
+        The set of regressors that will tested sequentially.
+
     y : array of shape(n_samples)
-        The data matrix
+        The data matrix.
 
     Returns
     -------
     F : array, shape = [n_features,]
-        The set of F values
+        The set of F values.
+
     pval : array, shape = [n_features,]
-        The set of p-values
+        The set of p-values.
     """
     X, y = check_arrays(X, y)
     args = [X[safe_mask(X, y == k)] for k in np.unique(y)]
@@ -203,6 +205,7 @@ def f_regression(X, y, center=True):
     ----------
     X : {array-like, sparse matrix}  shape = (n_samples, n_features)
         The set of regressors that will tested sequentially.
+
     y : array of shape(n_samples).
         The data matrix
 
@@ -213,6 +216,7 @@ def f_regression(X, y, center=True):
     -------
     F : array, shape=(n_features,)
         F values of features.
+
     pval : array, shape=(n_features,)
         p-values of F-scores.
     """
@@ -322,10 +326,10 @@ class SelectPercentile(_AbstractUnivariateFilter):
 
     Attributes
     ----------
-    scores_ : array-like, shape=(n_features,)
+    `scores_` : array-like, shape=(n_features,)
         Scores of features.
 
-    pvalues_ : array-like, shape=(n_features,)
+    `pvalues_` : array-like, shape=(n_features,)
         p-values of feature scores.
 
     Notes
@@ -379,10 +383,10 @@ class SelectKBest(_AbstractUnivariateFilter):
 
     Attributes
     ----------
-    scores_ : array-like, shape=(n_features,)
+    `scores_` : array-like, shape=(n_features,)
         Scores of features.
 
-    pvalues_ : array-like, shape=(n_features,)
+    `pvalues_` : array-like, shape=(n_features,)
         p-values of feature scores.
 
     Notes
@@ -428,10 +432,10 @@ class SelectFpr(_AbstractUnivariateFilter):
 
     Attributes
     ----------
-    scores_ : array-like, shape=(n_features,)
+    `scores_` : array-like, shape=(n_features,)
         Scores of features.
 
-    pvalues_ : array-like, shape=(n_features,)
+    `pvalues_` : array-like, shape=(n_features,)
         p-values of feature scores.
     """
 
@@ -462,10 +466,10 @@ class SelectFdr(_AbstractUnivariateFilter):
 
     Attributes
     ----------
-    scores_ : array-like, shape=(n_features,)
+    `scores_` : array-like, shape=(n_features,)
         Scores of features.
 
-    pvalues_ : array-like, shape=(n_features,)
+    `pvalues_` : array-like, shape=(n_features,)
         p-values of feature scores.
     """
 
@@ -494,10 +498,10 @@ class SelectFwe(_AbstractUnivariateFilter):
 
     Attributes
     ----------
-    scores_ : array-like, shape=(n_features,)
+    `scores_` : array-like, shape=(n_features,)
         Scores of features.
 
-    pvalues_ : array-like, shape=(n_features,)
+    `pvalues_` : array-like, shape=(n_features,)
         p-values of feature scores.
     """
 
@@ -531,10 +535,10 @@ class GenericUnivariateSelect(_AbstractUnivariateFilter):
 
     Attributes
     ----------
-    scores_ : array-like, shape=(n_features,)
+    `scores_` : array-like, shape=(n_features,)
         Scores of features.
 
-    pvalues_ : array-like, shape=(n_features,)
+    `pvalues_` : array-like, shape=(n_features,)
         p-values of feature scores.
     """
 
@@ -550,8 +554,8 @@ class GenericUnivariateSelect(_AbstractUnivariateFilter):
             raise ValueError(
                 "The mode passed should be one of %s, %r, (type %s) "
                 "was passed." % (
-                        self._selection_modes.keys(),
-                        mode, type(mode)))
+                    self._selection_modes.keys(),
+                    mode, type(mode)))
         super(GenericUnivariateSelect, self).__init__(score_func)
         self.mode = mode
         self.param = param

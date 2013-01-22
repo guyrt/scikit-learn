@@ -68,7 +68,7 @@ def _get_weights(dist, weights):
         return weights(dist)
     else:
         raise ValueError("weights not recognized: should be 'uniform', "
-                            "'distance', or a callable function")
+                         "'distance', or a callable function")
 
 
 class NeighborsBase(BaseEstimator):
@@ -211,7 +211,7 @@ class KNeighborsMixin(object):
                [2]]...)
 
         """
-        if self._fit_method == None:
+        if self._fit_method is None:
             raise ValueError("must fit neighbors before querying")
 
         X = atleast2d_or_csr(X)
@@ -307,7 +307,7 @@ class KNeighborsMixin(object):
         --------
         NearestNeighbors.radius_neighbors_graph
         """
-        X = np.asarray(X)
+        X = safe_asarray(X)
 
         if n_neighbors is None:
             n_neighbors = self.n_neighbors
@@ -340,14 +340,14 @@ class RadiusNeighborsMixin(object):
     """Mixin for radius-based neighbors searches"""
 
     def radius_neighbors(self, X, radius=None, return_distance=True):
-        """Finds the neighbors of a point within a given radius.
+        """Finds the neighbors within a given radius of a point or points.
 
-        Returns distance
+        Returns indices of and distances to the neighbors of each point.
 
         Parameters
         ----------
         X : array-like, last dimension same as that of fit data
-            The new point.
+            The new point or points
 
         radius : float
             Limiting distance of neighbors to return.
@@ -359,8 +359,8 @@ class RadiusNeighborsMixin(object):
         Returns
         -------
         dist : array
-            Array representing the lengths to point, only present if
-            return_distance=True
+            Array representing the euclidean distances to each point,
+            only present if return_distance=True.
 
         ind : array
             Indices of the nearest points in the population matrix.
@@ -382,12 +382,17 @@ class RadiusNeighborsMixin(object):
         The first array returned contains the distances to all points which
         are closer than 1.6, while the second array returned contains their
         indices.  In general, multiple points can be queried at the same time.
+
+        Notes
+        -----
         Because the number of neighbors of each point is not necessarily
-        equal, `radius_neighbors` returns an array of objects, where each
-        object is a 1D array of indices.
+        equal, the results for multiple query points cannot be fit in a
+        standard data array.
+        For efficiency, `radius_neighbors` returns arrays of objects, where
+        each object is a 1D array of indices or distances.
         """
 
-        if self._fit_method == None:
+        if self._fit_method is None:
             raise ValueError("must fit neighbors before querying")
 
         X = atleast2d_or_csr(X)
@@ -422,12 +427,12 @@ class RadiusNeighborsMixin(object):
 
             if return_distance:
                 if self.p == 2:
-                    dist = np.array([np.sqrt(d[neigh_ind[i]]) \
-                                        for i, d in enumerate(dist)],
+                    dist = np.array([np.sqrt(d[neigh_ind[i]])
+                                     for i, d in enumerate(dist)],
                                     dtype=dtype_F)
                 else:
-                    dist = np.array([d[neigh_ind[i]] \
-                                         for i, d in enumerate(dist)],
+                    dist = np.array([d[neigh_ind[i]]
+                                     for i, d in enumerate(dist)],
                                     dtype=dtype_F)
                 return dist, neigh_ind
             else:
@@ -511,7 +516,7 @@ class RadiusNeighborsMixin(object):
         --------
         kneighbors_graph
         """
-        X = np.asarray(X)
+        X = safe_asarray(X)
 
         if radius is None:
             radius = self.radius

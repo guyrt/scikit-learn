@@ -19,6 +19,8 @@
 {% endif %}
 
 {% block extrahead %}
+
+{% if theme_google_analytics|tobool %}
 <script type="text/javascript">
 
   var _gaq = _gaq || [];
@@ -32,6 +34,8 @@
   })();
 
 </script>
+{% endif %}
+
 {% endblock %}
 
 {%- if pagename == 'index' %}
@@ -45,6 +49,14 @@
          for {{project}} <strong>version {{ release|e }}</strong>.
          &mdash; <a href="http://scikit-learn.org/stable/">
            Latest stable version</a></p></p>
+     </div>
+   {%- endif %}
+   {%- if theme_surveybanner == true %}
+     <div class="survey-wrapper">
+       <p>Please help us to improve <b>scikit-learn</b>
+	 by completing this quick survey.
+         &mdash; <a href="https://docs.google.com/spreadsheet/viewform?formkey=dFdyeGNhMzlCRWZUdldpMEZlZ1B1YkE6MQ#gid=0">
+           Click here..</a></p></p>
      </div>
    {%- endif %}
 
@@ -152,7 +164,7 @@
     {% else %}
     <h3><a href="{{pathto('whats_new')}}">News</a></h3>
 
-    <p>scikit-learn 0.12 is available
+    <p>scikit-learn 0.13 is available
     for <a href="https://sourceforge.net/projects/scikit-learn/files/">download</a>.
     See <a href="{{pathto('whats_new')}}">what's new</a> and tips
     on <a href="{{pathto('install')}}">installing</a>.</p>

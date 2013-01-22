@@ -3,7 +3,6 @@ from io import BytesIO
 import numpy as np
 import scipy.sparse
 
-from cStringIO import StringIO
 from sklearn.utils.testing import assert_almost_equal
 from sklearn.utils.testing import assert_array_equal
 from sklearn.utils.testing import assert_array_almost_equal
@@ -153,8 +152,8 @@ def test_discretenb_provide_prior():
     """Test whether discrete NB classes use provided prior"""
 
     for cls in [BernoulliNB, MultinomialNB]:
-        clf = cls()
-        clf.fit([[0], [0], [1]], [0, 0, 1], class_prior=[0.5, 0.5])
+        clf = cls(class_prior=[0.5, 0.5])
+        clf.fit([[0], [0], [1]], [0, 0, 1])
         prior = np.exp(clf.class_log_prior_)
         assert_array_equal(prior, np.array([.5, .5]))
 

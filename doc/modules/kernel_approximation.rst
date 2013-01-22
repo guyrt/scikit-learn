@@ -26,10 +26,23 @@ Since there has not been much empirical work using approximate embeddings, it
 is advisable to compare results against exact kernel methods when possible.
 
 
+.. currentmodule:: sklearn.kernel_approximation
+
+.. _nystroem_kernel_approx:
+
+Nystroem Method for Kernel Approximation
+----------------------------------------
+The Nystroem method, as implemented in :class:`Nystroem` is a general method
+for low-rank approximations of kernels. It achieves this by essentially subsampling
+the data on which the kernel is evaluated.
+By default :class:`Nystroem` uses the ``rbf`` kernel, but it can use any
+kernel function or a precomputed kernel matrix.
+The number of samples used - which is also the dimensionality of the features computed -
+is given by the parameter ``n_components``.
+
+
 Radial Basis Function Kernel
 ----------------------------
-
-.. currentmodule:: sklearn.kernel_approximation
 
 The :class:`RBFSampler` constructs an approximate mapping for the radial basis
 function kernel. This transformation can be used to explicitly model a kernel map,
@@ -66,6 +79,10 @@ function does not actually depend on the data given to the ``fit`` function.
 Only the dimensionality of the data is used.
 Details on the method can be found in [RR2007]_.
 
+For a given value of ``n_components`` :class:`RBFSampler` is often less acurate
+as :class:`Nystroem`. :class:`RBFSampler` is cheaper to compute, though, making
+use of larger feature spaces more efficient.
+
 .. figure:: ../auto_examples/images/plot_kernel_approximation_2.png
     :target: ../auto_examples/plot_kernel_approximation.html
     :scale: 50%
@@ -81,14 +98,17 @@ Details on the method can be found in [RR2007]_.
 Additive Chi Squared Kernel
 ---------------------------
 
-The chi squared kernel is a kernel on histograms, often used in computer vision.
+The additive chi squared kernel is a kernel on histograms, often used in computer vision.
 
-The chi squared kernel is given by
+The additive chi squared kernel as used here is given by
 
 .. math::
 
         k(x, y) = \sum_i \frac{2x_iy_i}{x_i+y_i}
 
+This is not exactly the same as :func:`sklearn.metrics.additive_chi2_kernel`.
+The authors of [VZ2010]_ prefer the version above as it is always positive
+definite.
 Since the kernel is additive, it is possible to treat all components
 :math:`x_i` separately for embedding. This makes it possible to sample
 the Fourier transform in regular intervals, instead of approximating
