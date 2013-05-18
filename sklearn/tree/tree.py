@@ -7,15 +7,23 @@ randomized trees. Single and multi-output problems are both handled.
 # Copyright (C) 2008-2011, Luis Pedro Coelho <luis@luispedro.org>
 # License: MIT. See COPYING.MIT file in the milk distribution
 
-# Authors: Brian Holt, Peter Prettenhofer, Satrajit Ghosh, Gilles Louppe,
+# Authors: Brian Holt,
+#          Peter Prettenhofer,
+#          Satrajit Ghosh,
+#          Gilles Louppe,
 #          Noel Dawe
-# License: BSD3
+# License: BSD 3 clause
 
 from __future__ import division
+
+import numbers
 import numpy as np
 from abc import ABCMeta, abstractmethod
+from warnings import warn
 
 from ..base import BaseEstimator, ClassifierMixin, RegressorMixin
+from ..externals import six
+from ..externals.six.moves import xrange
 from ..feature_selection.selector_mixin import SelectorMixin
 from ..utils import array2d, check_random_state
 from ..utils.validation import check_arrays
@@ -41,110 +49,13 @@ REGRESSION = {
 }
 
 
-def export_graphviz(decision_tree, out_file=None, feature_names=None):
-    """Export a decision tree in DOT format.
-
-    This function generates a GraphViz representation of the decision tree,
-    which is then written into `out_file`. Once exported, graphical renderings
-    can be generated using, for example::
-
-        $ dot -Tps tree.dot -o tree.ps      (PostScript format)
-        $ dot -Tpng tree.dot -o tree.png    (PNG format)
-
-    Parameters
-    ----------
-    decision_tree : decision tree classifier
-        The decision tree to be exported to graphviz.
-
-    out : file object or string, optional (default=None)
-        Handle or name of the output file.
-
-    feature_names : list of strings, optional (default=None)
-        Names of each of the features.
-
-    Returns
-    -------
-    out_file : file object
-        The file object to which the tree was exported.  The user is
-        expected to `close()` this object when done with it.
-
-    Examples
-    --------
-    >>> from sklearn.datasets import load_iris
-    >>> from sklearn import tree
-
-    >>> clf = tree.DecisionTreeClassifier()
-    >>> iris = load_iris()
-
-    >>> clf = clf.fit(iris.data, iris.target)
-    >>> import tempfile
-    >>> out_file = tree.export_graphviz(clf, out_file=tempfile.TemporaryFile())
-    >>> out_file.close()
-    """
-    def node_to_str(tree, node_id):
-        value = tree.value[node_id]
-        if tree.n_outputs == 1:
-            value = value[0, :]
-
-        if tree.children_left[node_id] == _tree.TREE_LEAF:
-            return "error = %.4f\\nsamples = %s\\nvalue = %s" \
-                   % (tree.init_error[node_id],
-                      tree.n_samples[node_id],
-                      value)
-        else:
-            if feature_names is not None:
-                feature = feature_names[tree.feature[node_id]]
-            else:
-                feature = "X[%s]" % tree.feature[node_id]
-
-            return "%s <= %.4f\\nerror = %s\\nsamples = %s\\nvalue = %s" \
-                   % (feature,
-                      tree.threshold[node_id],
-                      tree.init_error[node_id],
-                      tree.n_samples[node_id],
-                      value)
-
-    def recurse(tree, node_id, parent=None):
-        if node_id == _tree.TREE_LEAF:
-            raise ValueError("Invalid node_id %s" % _tree.TREE_LEAF)
-
-        left_child = tree.children_left[node_id]
-        right_child = tree.children_right[node_id]
-
-        # Add node with description
-        out_file.write('%d [label="%s", shape="box"] ;\n' %
-                       (node_id, node_to_str(tree, node_id)))
-
-        if parent is not None:
-            # Add edge to parent
-            out_file.write('%d -> %d ;\n' % (parent, node_id))
-
-        if left_child != _tree.TREE_LEAF:  # and right_child != _tree.TREE_LEAF
-            recurse(tree, left_child, node_id)
-            recurse(tree, right_child, node_id)
-
-    if out_file is None:
-        out_file = open("tree.dot", "w")
-    elif isinstance(out_file, basestring):
-        out_file = open(out_file, "w")
-
-    out_file.write("digraph Tree {\n")
-    if isinstance(decision_tree, _tree.Tree):
-        recurse(decision_tree, 0)
-    else:
-        recurse(decision_tree.tree_, 0)
-    out_file.write("}")
-
-    return out_file
-
-
-class BaseDecisionTree(BaseEstimator, SelectorMixin):
+class BaseDecisionTree(six.with_metaclass(ABCMeta, BaseEstimator,
+                                          SelectorMixin)):
     """Base class for decision trees.
 
     Warning: This class should not be used directly.
     Use derived classes instead.
     """
-    __metaclass__ = ABCMeta
 
     @abstractmethod
     def __init__(self,
@@ -162,6 +73,13 @@ class BaseDecisionTree(BaseEstimator, SelectorMixin):
         self.min_samples_leaf = min_samples_leaf
         self.min_density = min_density
         self.max_features = max_features
+
+        if compute_importances:
+            warn("Setting compute_importances=True is no longer "
+                 "required. Variable importances are now computed on the fly "
+                 "when accessing the feature_importances_ attribute. This "
+                 "parameter will be removed in 0.15.", DeprecationWarning)
+
         self.compute_importances = compute_importances
         self.random_state = random_state
 
@@ -172,7 +90,6 @@ class BaseDecisionTree(BaseEstimator, SelectorMixin):
         self.find_split_ = _tree.TREE_SPLIT_BEST
 
         self.tree_ = None
-        self.feature_importances_ = None
 
     def fit(self, X, y,
             sample_mask=None, X_argsorted=None,
@@ -273,7 +190,7 @@ class BaseDecisionTree(BaseEstimator, SelectorMixin):
         # Check parameters
         max_depth = np.inf if self.max_depth is None else self.max_depth
 
-        if isinstance(self.max_features, basestring):
+        if isinstance(self.max_features, six.string_types):
             if self.max_features == "auto":
                 if is_classification:
                     max_features = max(1, int(np.sqrt(self.n_features_)))
@@ -289,8 +206,10 @@ class BaseDecisionTree(BaseEstimator, SelectorMixin):
                     'values are "auto", "sqrt" or "log2".')
         elif self.max_features is None:
             max_features = self.n_features_
-        else:
+        elif isinstance(self.max_features, (numbers.Integral, np.integer)):
             max_features = self.max_features
+        else:  # float
+            max_features = int(self.max_features * self.n_features_)
 
         if len(y) != n_samples:
             raise ValueError("Number of labels=%d does not match "
@@ -355,11 +274,6 @@ class BaseDecisionTree(BaseEstimator, SelectorMixin):
             self.n_classes_ = self.n_classes_[0]
             self.classes_ = self.classes_[0]
 
-        # Compute importances
-        if self.compute_importances:
-            self.feature_importances_ = \
-                self.tree_.compute_feature_importances()
-
         return self
 
     def predict(self, X):
@@ -398,9 +312,8 @@ class BaseDecisionTree(BaseEstimator, SelectorMixin):
         # Classification
         if isinstance(self, ClassifierMixin):
             if self.n_outputs_ == 1:
-                return np.array(self.classes_.take(
-                    np.argmax(proba[:, 0], axis=1),
-                    axis=0))
+                return self.classes_.take(np.argmax(proba[:, 0], axis=1),
+                                          axis=0)
 
             else:
                 predictions = np.zeros((n_samples, self.n_outputs_))
@@ -420,6 +333,24 @@ class BaseDecisionTree(BaseEstimator, SelectorMixin):
             else:
                 return proba[:, :, 0]
 
+    @property
+    def feature_importances_(self):
+        """Return the feature importances.
+
+        The importance of a feature is computed as the (normalized) total
+        reduction of the criterion brought by that feature.
+        It is also known as the Gini importance [4]_.
+
+        Returns
+        -------
+        feature_importances_ : array, shape = [n_features]
+        """
+        if self.tree_ is None:
+            raise ValueError("Estimator not fitted, "
+                             "call `fit` before `feature_importances_`.")
+
+        return self.tree_.compute_feature_importances()
+
 
 class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
     """A decision tree classifier.
@@ -430,11 +361,13 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         The function to measure the quality of a split. Supported criteria are
         "gini" for the Gini impurity and "entropy" for the information gain.
 
-    max_features : int, string or None, optional (default=None)
+    max_features : int, float, string or None, optional (default=None)
         The number of features to consider when looking for the best split:
-          - If "auto", then `max_features=sqrt(n_features)` on
-            classification tasks and `max_features=n_features`
-            on regression problems.
+          - If int, then consider `max_features` features at each split.
+          - If float, then `max_features` is a percentage and
+            `int(max_features * n_features)` features are considered at each
+            split.
+          - If "auto", then `max_features=sqrt(n_features)`.
           - If "sqrt", then `max_features=sqrt(n_features)`.
           - If "log2", then `max_features=log2(n_features)`.
           - If None, then `max_features=n_features`.
@@ -460,10 +393,6 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         data. Otherwise, partitions are represented as bit masks (aka
         sample masks).
 
-    compute_importances : boolean, optional (default=False)
-        Whether feature importances are computed and stored into the
-        ``feature_importances_`` attribute when calling fit.
-
     random_state : int, RandomState instance or None, optional (default=None)
         If int, random_state is the seed used by the random number generator;
         If RandomState instance, random_state is the random number generator;
@@ -485,11 +414,10 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         output (for multi-output problems).
 
     `feature_importances_` : array of shape = [n_features]
-        The feature importances
-        (the higher, the more important the feature).
-        The importance of a feature is computed as the
-        (normalized) total reduction of error brought by that
-        feature.  It is also known as the Gini importance [4]_.
+        The feature importances. The higher, the more important the
+        feature. The importance of a feature is computed as the (normalized)
+        total reduction of the criterion brought by that feature.  It is also
+        known as the Gini importance [4]_.
 
     See also
     --------
@@ -629,11 +557,13 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
         The function to measure the quality of a split. The only supported
         criterion is "mse" for the mean squared error.
 
-    max_features : int, string or None, optional (default=None)
+    max_features : int, float, string or None, optional (default=None)
         The number of features to consider when looking for the best split:
-          - If "auto", then `max_features=sqrt(n_features)` on
-            classification tasks and `max_features=n_features`
-            on regression problems.
+          - If int, then consider `max_features` features at each split.
+          - If float, then `max_features` is a percentage and
+            `int(max_features * n_features)` features are considered at each
+            split.
+          - If "auto", then `max_features=n_features`.
           - If "sqrt", then `max_features=sqrt(n_features)`.
           - If "log2", then `max_features=log2(n_features)`.
           - If None, then `max_features=n_features`.
@@ -659,10 +589,6 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
         data. Otherwise, partitions are represented as bit masks (aka
         sample masks).
 
-    compute_importances : boolean, optional (default=True)
-        Whether feature importances are computed and stored into the
-        ``feature_importances_`` attribute when calling fit.
-
     random_state : int, RandomState instance or None, optional (default=None)
         If int, random_state is the seed used by the random number generator;
         If RandomState instance, random_state is the random number generator;
@@ -675,11 +601,11 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
         The underlying Tree object.
 
     `feature_importances_` : array of shape = [n_features]
-        The feature importances
-        (the higher, the more important the feature).
+        The feature importances.
+        The higher, the more important the feature.
         The importance of a feature is computed as the
-        (normalized) total reduction of error brought by that
-        feature.  It is also known as the Gini importance [4]_.
+        (normalized)total reduction of the criterion brought
+        by that feature. It is also known as the Gini importance [4]_.
 
     See also
     --------

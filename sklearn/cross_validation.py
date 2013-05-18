@@ -6,7 +6,7 @@ validation and performance evaluation.
 # Author: Alexandre Gramfort <alexandre.gramfort@inria.fr>,
 #         Gael Varoquaux <gael.varoquaux@normalesup.org>,
 #         Olivier Grisel <olivier.grisel@ensta.org>
-# License: BSD Style.
+# License: BSD 3 clause
 
 from __future__ import print_function
 
@@ -22,6 +22,8 @@ from .base import is_classifier, clone
 from .utils import check_arrays, check_random_state, safe_mask
 from .utils.fixes import unique
 from .externals.joblib import Parallel, delayed
+from .externals.six import string_types
+from .metrics import SCORERS, Scorer
 
 __all__ = ['Bootstrap',
            'KFold',
@@ -92,12 +94,13 @@ class LeaveOneOut(object):
 
     def __iter__(self):
         n = self.n
-        for i in xrange(n):
+        if self.indices:
+            ind = np.arange(n)
+        for i in range(n):
             test_index = np.zeros(n, dtype=np.bool)
             test_index[i] = True
             train_index = np.logical_not(test_index)
             if self.indices:
-                ind = np.arange(n)
                 train_index = ind[train_index]
                 test_index = ind[test_index]
             yield train_index, test_index
@@ -168,12 +171,13 @@ class LeavePOut(object):
         n = self.n
         p = self.p
         comb = combinations(range(n), p)
+        if self.indices:
+            ind = np.arange(n)
         for idx in comb:
             test_index = np.zeros(n, dtype=np.bool)
             test_index[np.array(idx)] = True
             train_index = np.logical_not(test_index)
             if self.indices:
-                ind = np.arange(n)
                 train_index = ind[train_index]
                 test_index = ind[test_index]
             yield train_index, test_index
@@ -246,8 +250,8 @@ class KFold(object):
 
     Notes
     -----
-    All the folds have size trunc(n_samples / n_folds), the last one has the
-    complementary.
+    The first n % n_folds folds have size n // n_folds + 1, other folds have
+    size n // n_folds.
 
     See also
     --------
@@ -279,18 +283,20 @@ class KFold(object):
     def __iter__(self):
         n = self.n
         n_folds = self.n_folds
-        fold_size = n // n_folds
-
-        for i in xrange(n_folds):
+        fold_sizes = (n // n_folds) * np.ones(n_folds, dtype=np.int)
+        fold_sizes[:n % n_folds] += 1
+        current = 0
+        if self.indices:
+            ind = np.arange(n)
+        for fold_size in fold_sizes:
             test_index = np.zeros(n, dtype=np.bool)
-            if i < n_folds - 1:
-                test_index[self.idxs[i * fold_size:(i + 1) * fold_size]] = True
-            else:
-                test_index[self.idxs[i * fold_size:]] = True
+            start, stop = current, current + fold_size
+            test_index[self.idxs[start:stop]] = True
             train_index = np.logical_not(test_index)
             if self.indices:
-                train_index = self.idxs[train_index]
-                test_index = self.idxs[test_index]
+                train_index = ind[train_index]
+                test_index = ind[test_index]
+            current = stop
             yield train_index, test_index
 
     def __repr__(self):
@@ -371,17 +377,16 @@ class StratifiedKFold(object):
         self.indices = indices
 
     def __iter__(self):
-        y = self.y.copy()
         n_folds = self.n_folds
-        n = y.size
-        idx = np.argsort(y)
-
-        for i in xrange(n_folds):
+        n = len(self.y)
+        idx = np.argsort(self.y)
+        if self.indices:
+            ind = np.arange(n)
+        for i in range(n_folds):
             test_index = np.zeros(n, dtype=np.bool)
             test_index[idx[i::n_folds]] = True
             train_index = np.logical_not(test_index)
             if self.indices:
-                ind = np.arange(n)
                 train_index = ind[train_index]
                 test_index = ind[test_index]
             yield train_index, test_index
@@ -447,19 +452,20 @@ class LeaveOneLabelOut(object):
     """
 
     def __init__(self, labels, indices=True):
-        self.labels = labels
-        self.n_unique_labels = unique(labels).size
+        # We make a copy of labels to avoid side-effects during iteration
+        self.labels = np.array(labels, copy=True)
+        self.unique_labels = unique(labels)
+        self.n_unique_labels = len(self.unique_labels)
         self.indices = indices
 
     def __iter__(self):
-        # We make a copy here to avoid side-effects during iteration
-        labels = np.array(self.labels, copy=True)
-        for i in unique(labels):
-            test_index = np.zeros(len(labels), dtype=np.bool)
-            test_index[labels == i] = True
+        if self.indices:
+            ind = np.arange(len(self.labels))
+        for i in self.unique_labels:
+            test_index = np.zeros(len(self.labels), dtype=np.bool)
+            test_index[self.labels == i] = True
             train_index = np.logical_not(test_index)
             if self.indices:
-                ind = np.arange(len(labels))
                 train_index = ind[train_index]
                 test_index = ind[test_index]
             yield train_index, test_index
@@ -532,26 +538,24 @@ class LeavePLabelOut(object):
     """
 
     def __init__(self, labels, p, indices=True):
-        self.labels = labels
-        self.unique_labels = unique(self.labels)
-        self.n_unique_labels = self.unique_labels.size
+        # We make a copy of labels to avoid side-effects during iteration
+        self.labels = np.array(labels, copy=True)
+        self.unique_labels = unique(labels)
+        self.n_unique_labels = len(self.unique_labels)
         self.p = p
         self.indices = indices
 
     def __iter__(self):
-        # We make a copy here to avoid side-effects during iteration
-        labels = np.array(self.labels, copy=True)
-        unique_labels = unique(labels)
         comb = combinations(range(self.n_unique_labels), self.p)
-
+        if self.indices:
+            ind = np.arange(len(self.labels))
         for idx in comb:
-            test_index = np.zeros(labels.size, dtype=np.bool)
+            test_index = np.zeros(len(self.labels), dtype=np.bool)
             idx = np.array(idx)
-            for l in unique_labels[idx]:
-                test_index[labels == l] = True
+            for l in self.unique_labels[idx]:
+                test_index[self.labels == l] = True
             train_index = np.logical_not(test_index)
             if self.indices:
-                ind = np.arange(labels.size)
                 train_index = ind[train_index]
                 test_index = ind[test_index]
             yield train_index, test_index
@@ -894,7 +898,7 @@ def _validate_stratified_shuffle_split(y, test_size, train_size):
                          " number of labels for any class cannot"
                          " be less than 2.")
 
-    n_train, n_test = _validate_shuffle_split(y.size, test_size, train_size)
+    n_train, n_test = _validate_shuffle_split(len(y), test_size, train_size)
 
     if n_train < n_cls:
         raise ValueError('The train_size = %d should be greater or '
@@ -946,6 +950,9 @@ class StratifiedShuffleSplit(object):
         mask array. Integer indices are required when dealing with sparse
         matrices, since those cannot be indexed by boolean masks.
 
+    random_state : int or RandomState
+        Pseudo-random number generator state used for random sampling.
+
     Examples
     --------
     >>> from sklearn.cross_validation import StratifiedShuffleSplit
@@ -969,7 +976,7 @@ class StratifiedShuffleSplit(object):
                  indices=True, random_state=None, n_iterations=None):
 
         self.y = np.array(y)
-        self.n = self.y.size
+        self.n = len(self.y)
         self.n_iter = n_iter
         if n_iterations is not None:  # pragma: no cover
             warnings.warn("n_iterations was renamed to n_iter for consistency"
@@ -1031,13 +1038,12 @@ class StratifiedShuffleSplit(object):
 
 ##############################################################################
 
-def _cross_val_score(estimator, X, y, score_func, train, test, verbose,
+def _cross_val_score(estimator, X, y, scorer, train, test, verbose,
                      fit_params):
     """Inner loop for cross validation"""
     n_samples = X.shape[0] if sp.issparse(X) else len(X)
     fit_params = dict([(k, np.asarray(v)[train]
-                        if hasattr(v, '__len__')
-                        and len(v) == n_samples else v)
+                       if hasattr(v, '__len__') and len(v) == n_samples else v)
                        for k, v in fit_params.items()])
     if not hasattr(X, "shape"):
         if getattr(estimator, "_pairwise", False):
@@ -1057,24 +1063,27 @@ def _cross_val_score(estimator, X, y, score_func, train, test, verbose,
             X_test = X[safe_mask(X, test)]
 
     if y is None:
-        estimator.fit(X_train, **fit_params)
-        if score_func is None:
-            score = estimator.score(X_test)
-        else:
-            score = score_func(X_test)
+        y_train = None
+        y_test = None
     else:
-        estimator.fit(X_train, y[train], **fit_params)
-        if score_func is None:
-            score = estimator.score(X_test, y[test])
-        else:
-            score = score_func(y[test], estimator.predict(X_test))
+        y_train = y[train]
+        y_test = y[test]
+    estimator.fit(X_train, y_train, **fit_params)
+    if scorer is None:
+        score = estimator.score(X_test, y_test)
+    else:
+        score = scorer(estimator, X_test, y_test)
+        if not isinstance(score, numbers.Number):
+            raise ValueError("scoring must return a number, got %s (%s)"
+                             " instead." % (str(score), type(score)))
     if verbose > 1:
         print("score: %f" % score)
     return score
 
 
-def cross_val_score(estimator, X, y=None, score_func=None, cv=None, n_jobs=1,
-                    verbose=0, fit_params=None):
+def cross_val_score(estimator, X, y=None, scoring=None, cv=None, n_jobs=1,
+                    verbose=0, fit_params=None, score_func=None,
+                    pre_dispatch='2*n_jobs'):
     """Evaluate a score by cross-validation
 
     Parameters
@@ -1089,12 +1098,11 @@ def cross_val_score(estimator, X, y=None, score_func=None, cv=None, n_jobs=1,
         The target variable to try to predict in the case of
         supervised learning.
 
-    score_func : callable, optional
-        Score function to use for evaluation.
-        Has priority over the score function in the estimator.
-        In a non-supervised setting, where y is None, it takes the test
-        data (X_test) as its only argument. In a supervised setting it takes
-        the test target (y_true) and the test prediction (y_pred) as arguments.
+    scoring : string or callable, optional
+        Either one of either a string ("zero_one", "f1", "roc_auc", ... for
+        classification, "mse", "r2", ... for regression) or a callable.
+        See 'Scoring objects' in the model evaluation section of the user guide
+        for details.
 
     cv : cross-validation generator, optional
         A cross-validation generator. If None, a 3-fold cross
@@ -1110,42 +1118,71 @@ def cross_val_score(estimator, X, y=None, score_func=None, cv=None, n_jobs=1,
 
     fit_params : dict, optional
         Parameters to pass to the fit method of the estimator.
+
+    pre_dispatch : int, or string, optional
+        Controls the number of jobs that get dispatched during parallel
+        execution. Reducing this number can be useful to avoid an
+        explosion of memory consumption when more jobs get dispatched
+        than CPUs can process. This parameter can be:
+
+            - None, in which case all the jobs are immediately
+              created and spawned. Use this for lightweight and
+              fast-running jobs, to avoid delays due to on-demand
+              spawning of the jobs
+
+            - An int, giving the exact number of total jobs that are
+              spawned
+
+            - A string, giving an expression as a function of n_jobs,
+              as in '2*n_jobs'
+
+    Returns
+    -------
+    scores : array of float, shape=(len(list(cv)),)
+        Array of scores of the estimator for each run of the cross validation.
     """
     X, y = check_arrays(X, y, sparse_format='csr', allow_lists=True)
     cv = check_cv(cv, X, y, classifier=is_classifier(estimator))
-    if score_func is None:
-        if not hasattr(estimator, 'score'):
-            raise TypeError(
-                "If no score_func is specified, the estimator passed "
-                "should have a 'score' method. The estimator %s "
-                "does not." % estimator)
+    if score_func is not None:
+        warnings.warn("Passing function as ``score_func`` is "
+                      "deprecated and will be removed in 0.15. "
+                      "Either use strings or score objects.", stacklevel=2)
+        scorer = Scorer(score_func)
+    elif isinstance(scoring, string_types):
+        scorer = SCORERS[scoring]
+    else:
+        scorer = scoring
+    if scorer is None and not hasattr(estimator, 'score'):
+        raise TypeError(
+            "If no scoring is specified, the estimator passed "
+            "should have a 'score' method. The estimator %s "
+            "does not." % estimator)
     # We clone the estimator to make sure that all the folds are
     # independent, and that it is pickle-able.
     fit_params = fit_params if fit_params is not None else {}
-    scores = Parallel(n_jobs=n_jobs, verbose=verbose)(
+    scores = Parallel(n_jobs=n_jobs, verbose=verbose,
+        pre_dispatch=pre_dispatch)(
         delayed(_cross_val_score)(
-            clone(estimator), X, y, score_func,
-            train, test, verbose, fit_params)
+            clone(estimator), X, y, scorer, train, test, verbose, fit_params)
         for train, test in cv)
     return np.array(scores)
 
 
-def _permutation_test_score(estimator, X, y, cv, score_func):
-    """Auxilary function for permutation_test_score"""
+def _permutation_test_score(estimator, X, y, cv, scorer):
+    """Auxiliary function for permutation_test_score"""
     avg_score = []
     for train, test in cv:
-        avg_score.append(score_func(y[test],
-                                    estimator.fit(X[train],
-                                                  y[train]).predict(X[test])))
+        estimator.fit(X[train], y[train])
+        avg_score.append(scorer(estimator, X[test], y[test]))
     return np.mean(avg_score)
 
 
 def _shuffle(y, labels, random_state):
     """Return a shuffled copy of y eventually shuffle among same labels."""
     if labels is None:
-        ind = random_state.permutation(y.size)
+        ind = random_state.permutation(len(y))
     else:
-        ind = np.arange(labels.size)
+        ind = np.arange(len(labels))
         for label in unique(labels):
             this_mask = (labels == label)
             ind[this_mask] = random_state.permutation(ind[this_mask])
@@ -1192,9 +1229,9 @@ def check_cv(cv, X=None, y=None, classifier=False):
     return cv
 
 
-def permutation_test_score(estimator, X, y, score_func, cv=None,
+def permutation_test_score(estimator, X, y, scoring=None, cv=None,
                            n_permutations=100, n_jobs=1, labels=None,
-                           random_state=0, verbose=0):
+                           random_state=0, verbose=0, score_func=None):
     """Evaluate the significance of a cross-validated score with permutations
 
     Parameters
@@ -1209,12 +1246,11 @@ def permutation_test_score(estimator, X, y, score_func, cv=None,
         The target variable to try to predict in the case of
         supervised learning.
 
-    score_func : callable
-        Callable taking as arguments the test targets (y_test) and
-        the predicted targets (y_pred) and returns a float. The score
-        functions are expected to return a bigger value for a better result
-        otherwise the returned value does not correspond to a p-value (see
-        Returns below for further details).
+    scoring : string or object, optional
+        Either one of either a string ("zero_one", "f1", "roc_auc", ... for
+        classification, "mse", "r2", ... for regression) or a callable.
+        See 'Scoring objects' in the model evaluation section of the user guide
+        for details.
 
     cv : integer or crossvalidation generator, optional
         If an integer is passed, it is the number of fold (default 3).
@@ -1263,15 +1299,28 @@ def permutation_test_score(estimator, X, y, score_func, cv=None,
     X, y = check_arrays(X, y, sparse_format='csr')
     cv = check_cv(cv, X, y, classifier=is_classifier(estimator))
 
+    if score_func is not None:
+        warnings.warn("Passing function as ``score_func`` is "
+                      "deprecated and will be removed in 0.15. "
+                      "Either use strings or score objects.")
+        scorer = Scorer(score_func)
+    elif isinstance(scoring, string_types):
+        scorer = SCORERS[scoring]
+    else:
+        scorer = scoring
+
+    if scorer is None:
+        raise ValueError("No valid scoring provided.")
+
     random_state = check_random_state(random_state)
 
     # We clone the estimator to make sure that all the folds are
     # independent, and that it is pickle-able.
-    score = _permutation_test_score(clone(estimator), X, y, cv, score_func)
+    score = _permutation_test_score(clone(estimator), X, y, cv, scorer)
     permutation_scores = Parallel(n_jobs=n_jobs, verbose=verbose)(
-        delayed(_permutation_test_score)(clone(estimator), X,
-                                         _shuffle(y, labels, random_state),
-                                         cv, score_func)
+        delayed(_permutation_test_score)(
+            clone(estimator), X, _shuffle(y, labels, random_state), cv,
+            scorer)
         for _ in range(n_permutations))
     permutation_scores = np.array(permutation_scores)
     pvalue = (np.sum(permutation_scores >= score) + 1.0) / (n_permutations + 1)
@@ -1313,6 +1362,11 @@ def train_test_split(*arrays, **options):
 
     dtype : a numpy dtype instance, None by default
         Enforce a specific dtype.
+
+    Returns
+    -------
+    splitting : list of arrays, length=2 * len(arrays)
+        List containing train-test split of input array.
 
     Examples
     --------
@@ -1368,3 +1422,5 @@ def train_test_split(*arrays, **options):
         splitted.append(a[train])
         splitted.append(a[test])
     return splitted
+
+train_test_split.__test__ = False  # to avoid a pb with nosetests

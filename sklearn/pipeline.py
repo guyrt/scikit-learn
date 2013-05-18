@@ -13,6 +13,9 @@ from scipy import sparse
 
 from .base import BaseEstimator, TransformerMixin
 from .externals.joblib import Parallel, delayed
+from .externals import six
+from .utils import tosequence
+from .externals.six import iteritems
 
 __all__ = ['Pipeline', 'FeatureUnion']
 
@@ -77,7 +80,8 @@ class Pipeline(BaseEstimator):
         if len(self.named_steps) != len(steps):
             raise ValueError("Names provided are not unique: %s" % names)
 
-        self.steps = zip(names, estimators)     # shallow copy of steps
+        # shallow copy of steps
+        self.steps = tosequence(zip(names, estimators))
         transforms = estimators[:-1]
         estimator = estimators[-1]
 
@@ -98,8 +102,8 @@ class Pipeline(BaseEstimator):
             return super(Pipeline, self).get_params(deep=False)
         else:
             out = self.named_steps.copy()
-            for name, step in self.named_steps.iteritems():
-                for key, value in step.get_params(deep=True).iteritems():
+            for name, step in six.iteritems(self.named_steps):
+                for key, value in six.iteritems(step.get_params(deep=True)):
                     out['%s__%s' % (name, key)] = value
             return out
 
@@ -107,7 +111,7 @@ class Pipeline(BaseEstimator):
 
     def _pre_transform(self, X, y=None, **fit_params):
         fit_params_steps = dict((step, {}) for step, _ in self.steps)
-        for pname, pval in fit_params.iteritems():
+        for pname, pval in six.iteritems(fit_params):
             step, param = pname.split('__', 1)
             fit_params_steps[step][param] = pval
         Xt = X
@@ -338,6 +342,6 @@ class FeatureUnion(BaseEstimator, TransformerMixin):
         else:
             out = dict(self.transformer_list)
             for name, trans in self.transformer_list:
-                for key, value in trans.get_params(deep=True).iteritems():
+                for key, value in iteritems(trans.get_params(deep=True)):
                     out['%s__%s' % (name, key)] = value
             return out

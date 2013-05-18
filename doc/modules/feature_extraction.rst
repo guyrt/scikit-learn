@@ -124,9 +124,9 @@ and has no ``inverse_transform`` method.
 
 Since the hash function might cause collisions between (unrelated) features,
 a signed hash function is used and the sign of the hash value
-determines the sign of the value stored in the output matrix for a feature;
-this way, collisions are likely to cancel out rather than accumulate error,
-and the expected mean of any output feature's value is zero
+determines the sign of the value stored in the output matrix for a feature.
+This way, collisions are likely to cancel out rather than accumulate error,
+and the expected mean of any output feature's value is zero.
 
 If ``non_negative=True`` is passed to the constructor,
 the absolute value is taken.
@@ -139,14 +139,20 @@ or ``chi2`` feature selectors that expect non-negative inputs.
 ``(feature, value)`` pairs, or strings,
 depending on the constructor parameter ``input_type``.
 Mapping are treated as lists of ``(feature, value)`` pairs,
-while single strings have an implicit value of 1.
-If a feature occurs multiple times in a sample, the values will be summed.
+while single strings have an implicit value of 1,
+so ``['feat1', 'feat2', 'feat3']`` is interpreted as
+``[('feat1', 1), ('feat2', 1), ('feat3', 1)]``.
+If a single feature occurs multiple times in a sample,
+the associated values will be summed
+(so ``('feat', 2)`` and ``('feat', 3.5)`` become ``('feat', 5.5)``).
+The output from :class:`FeatureHasher` is always a ``scipy.sparse`` matrix
+in the CSR format.
+
 Feature hashing can be employed in document classification,
 but unlike :class:`text.CountVectorizer`,
 :class:`FeatureHasher` does not do word
-splitting or any other preprocessing except Unicode-to-UTF-8 encoding.
-The output from :class:`FeatureHasher` is always a ``scipy.sparse`` matrix
-in the CSR format.
+splitting or any other preprocessing except Unicode-to-UTF-8 encoding;
+see :ref:`hashing_vectorizer`, below, for a combined tokenizer/hasher.
 
 As an example, consider a word-level natural language processing task
 that needs features extracted from ``(token, part_of_speech)`` pairs.
@@ -192,6 +198,10 @@ used two separate hash functions :math:`h` and :math:`\xi`
 to determine the column index and sign of a feature, respectively.
 The present implementation works under the assumption
 that the sign bit of MurmurHash3 is independent of its other bits.
+
+Since a simple modulo is used to transform the hash function to a column index,
+it is advisable to use a power of two as the ``n_features`` parameter;
+otherwise the features will not be mapped evenly to the columns.
 
 
 .. topic:: References:
@@ -281,12 +291,12 @@ reasonable (please see  the :ref:`reference documentation
 
   >>> vectorizer = CountVectorizer(min_df=1)
   >>> vectorizer                            # doctest: +NORMALIZE_WHITESPACE
-  CountVectorizer(analyzer='word', binary=False, charset='utf-8',
-          charset_error='strict', dtype=<type 'long'>, input='content',
-          lowercase=True, max_df=1.0, max_features=None, max_n=None, min_df=1,
-          min_n=None, ngram_range=(1, 1), preprocessor=None, stop_words=None,
-          strip_accents=None, token_pattern=u'(?u)\\b\\w\\w+\\b', tokenizer=None,
-          vocabulary=None)
+  CountVectorizer(analyzer=u'word', binary=False, charset=u'utf-8',
+          charset_error=u'strict', dtype=<type 'numpy.int64'>,
+          input=u'content', lowercase=True, max_df=1.0, max_features=None,
+          min_df=1, ngram_range=(1, 1), preprocessor=None, 
+          stop_words=None, strip_accents=None,
+          token_pattern=u'(?u)\\b\\w\\w+\\b', tokenizer=None, vocabulary=None)
 
 Let's use it to tokenize and count the word occurrences of a minimalistic
 corpus of text documents::
@@ -300,7 +310,7 @@ corpus of text documents::
   >>> X = vectorizer.fit_transform(corpus)
   >>> X                                       # doctest: +NORMALIZE_WHITESPACE
   <4x9 sparse matrix of type '<type 'numpy.int64'>'
-      with 19 stored elements in COOrdinate format>
+      with 19 stored elements in Compressed Sparse Column format>
 
 The default configuration tokenizes the string by extracting words of
 at least 2 letters. The specific function that does this step can be
@@ -384,7 +394,7 @@ suitable for usage by a classifier it is very common to use the tf–idf
 transform.
 
 Tf means **term-frequency** while tf–idf means term-frequency times
-**inverse document-frequency**. This is a orginally a term weighting
+**inverse document-frequency**. This is a originally a term weighting
 scheme developed for information retrieval (as a ranking function
 for search engines results), that has also found good use in document
 classification and clustering.
@@ -394,8 +404,9 @@ class::
 
   >>> from sklearn.feature_extraction.text import TfidfTransformer
   >>> transformer = TfidfTransformer()
-  >>> transformer
-  TfidfTransformer(norm='l2', smooth_idf=True, sublinear_tf=False, use_idf=True)
+  >>> transformer   # doctest: +NORMALIZE_WHITESPACE
+  TfidfTransformer(norm=u'l2', smooth_idf=True, sublinear_tf=False,
+                   use_idf=True)
 
 Again please see the :ref:`reference documentation
 <text_feature_extraction_ref>` for the details on all the parameters.
@@ -477,7 +488,7 @@ together by applying clustering algorithms such as :ref:`k_means`:
   * :ref:`example_document_clustering.py`
 
 Finally it is possible to discover the main topics of a corpus by
-relaxing the hard assignement constraint of clustering, for instance by
+relaxing the hard assignment constraint of clustering, for instance by
 using :ref:`NMF`:
 
   * :ref:`example_applications_topics_extraction_with_nmf.py`
@@ -493,7 +504,7 @@ misspellings or word derivations.
 
 N-grams to the rescue! Instead of building a simple collection of
 unigrams (n=1), one might prefer a collection of bigrams (n=2), where
-occurences of pairs of consecutive words are counted.
+occurrences of pairs of consecutive words are counted.
 
 One might alternatively consider a collection of character n-grams, a
 representation resiliant against misspellings and derivations.
@@ -524,7 +535,7 @@ span across words::
   >>> ngram_vectorizer.fit_transform(['jumpy fox'])
   ...                                         # doctest: +NORMALIZE_WHITESPACE
   <1x4 sparse matrix of type '<type 'numpy.int64'>'
-     with 4 stored elements in COOrdinate format>
+     with 4 stored elements in Compressed Sparse Column format>
   >>> ngram_vectorizer.get_feature_names()
   [u' fox ', u' jump', u'jumpy', u'umpy ']
 
@@ -532,7 +543,7 @@ span across words::
   >>> ngram_vectorizer.fit_transform(['jumpy fox'])
   ...                                         # doctest: +NORMALIZE_WHITESPACE
   <1x5 sparse matrix of type '<type 'numpy.int64'>'
-      with 5 stored elements in COOrdinate format>
+      with 5 stored elements in Compressed Sparse Column format>
   >>> ngram_vectorizer.get_feature_names()
   [u'jumpy', u'mpy f', u'py fo', u'umpy ', u'y fox']
 
@@ -658,23 +669,52 @@ to the vectorizer constructor::
 
 In particular we name:
 
-  * ``preprocessor`` a callable that takes a string as input and return
-    another string (removing HTML tags or converting to lower case for
-    instance)
+  * ``preprocessor``: a callable that takes an entire document as input (as a
+    single string), and returns a possibly transformed version of the document,
+    still as an entire string. This can be used to remove HTML tags, lowercase
+    the entire document, etc.
 
-  * ``tokenizer`` a callable that takes a string as input and output a
-    sequence of feature occurrences (a.k.a. the tokens).
+  * ``tokenizer``: a callable that takes the output from the preprocessor
+    and splits it into tokens, then returns a list of these.
 
-  * ``analyzer`` a callable that wraps calls to the preprocessor and
-    tokenizer and further perform some filtering or n-grams extractions
-    on the tokens.
+  * ``analyzer``: a callable that replaces the preprocessor and tokenizer.
+    The default analyzers all call the preprocessor and tokenizer, but custom
+    analyzers will skip this. N-gram extraction and stop word filtering take
+    place at the analyzer level, so a custom analyzer may have to reproduce
+    these steps.
+
+(Lucene users might recognize these names, but be aware that scikit-learn
+concepts may not map one-to-one onto Lucene concepts.)
 
 To make the preprocessor, tokenizer and analyzers aware of the model
 parameters it is possible to derive from the class and override the
 ``build_preprocessor``, ``build_tokenizer``` and ``build_analyzer``
-factory method instead.
+factory methods instead of passing custom functions.
 
-Customizing the vectorizer can be very useful to handle Asian languages
+Some tips and tricks:
+
+  * If documents are pre-tokenized by an external package, then store them in
+    files (or strings) with the tokens separated by whitespace and pass
+    ``analyzer=str.split``
+  * Fancy token-level analysis such as stemming, lemmatizing, compound
+    splitting, filtering based on part-of-speech, etc. are not included in the
+    scikit-learn codebase, but can be added by customizing either the
+    tokenizer or the analyzer.
+    Here's a ``CountVectorizer`` with a tokenizer and lemmatizer using NLTK::
+
+        >>> from nltk import word_tokenize          # doctest: +SKIP
+        >>> from nltk.stem import WordNetLemmatizer # doctest: +SKIP
+        >>> class LemmaTokenizer(object):
+        ...     def __init__(self):
+        ...         self.wnl = WordNetLemmatizer()
+        ...     def __call__(self, doc):
+        ...         return [self.wnl.lemmatize(t) for t in word_tokenize(doc)]
+        ...
+        >>> vect = CountVectorizer(tokenizer=LemmaTokenizer())  # doctest: +SKIP
+
+    (Note that this will not filter out punctuation.)
+
+Customizing the vectorizer can also be useful when handling Asian languages
 that do not use an explicit word separator such as whitespace.
 
 

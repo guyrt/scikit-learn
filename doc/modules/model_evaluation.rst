@@ -3,17 +3,19 @@
 ===================
 Model evaluation
 ===================
-The :mod:`sklearn.metrics` implements score functions, performance metrics,
-pairwise metrics and distance computations. Those functions are usefull to
-assess the performance of an estimator under a specific criterion. Note that
-in many cases, the ``score`` method of the underlying estimator is sufficient
-and appropriate.
 
-In this module, functions named as
+The :mod:`sklearn.metrics` module implements useful functions for assessing the
+performance of an estimator under a specific criterion.  Functions whose name
+ends with ``_score`` return a scalar value to maximize (the higher the better).
+Functions whose name ends with  ``_error`` or ``_loss`` return a scalar value
+to minimize (the lower the better).
 
-  * ``*_score`` return a scalar value to maximize: the higher the better;
-  * ``*_error`` or ``*_loss`` return a scalar value to minimize: the lower the
-    better.
+.. note::
+
+    Estimators usually define a ``score`` method which provides a suitable evaluation
+    score for this estimator.
+
+For pairwise metrics, see the :ref:`metrics` section.
 
 .. _classification_metrics:
 
@@ -43,15 +45,24 @@ Others also work in the multiclass case:
 .. autosummary::
    :template: function.rst
 
+   classification_report
+   confusion_matrix
+   f1_score
+   fbeta_score
+   precision_recall_fscore_support
+   precision_score
+   recall_score
+
+And some also work in the multilabel case:
+
+.. autosummary::
+   :template: function.rst
+
   accuracy_score
-  classification_report
-  confusion_matrix
-  f1_score
-  fbeta_score
-  precision_recall_fscore_support
-  precision_score
-  recall_score
+  hamming_loss
+  jaccard_similarity_score
   zero_one_loss
+
 
 Some metrics might require probability estimates of the positive class,
 confidence values or binary decisions value.
@@ -62,7 +73,11 @@ Accuracy score
 ---------------
 The :func:`accuracy_score` function computes the
 `accuracy <http://en.wikipedia.org/wiki/Accuracy_and_precision>`_, the fraction
-of correct predictions.
+(default) or the number of correct predictions.
+
+In multilabel classification, the function returns the subset accuracy: if
+the entire set of predicted labels for a sample strictly match with the true
+set of labels, then the subset accuracy is 1.0, otherwise it is 0.0.
 
 If :math:`\hat{y}_i` is the predicted value of
 the :math:`i`-th sample and :math:`y_i` is the corresponding true value,
@@ -71,16 +86,29 @@ defined as
 
 .. math::
 
-   \texttt{accuracy}(y, \hat{y}) = \frac{1}{n_\text{samples}} \sum_{i=0}^{n_\text{samples}-1} 1(\hat{y} = y)
+   \texttt{accuracy}(y, \hat{y}) = \frac{1}{n_\text{samples}} \sum_{i=0}^{n_\text{samples}-1} 1(\hat{y}_i = y_i)
 
 where :math:`1(x)` is the `indicator function
 <http://en.wikipedia.org/wiki/Indicator_function>`_.
 
+  >>> import numpy as np
   >>> from sklearn.metrics import accuracy_score
   >>> y_pred = [0, 2, 1, 3]
   >>> y_true = [0, 1, 2, 3]
   >>> accuracy_score(y_true, y_pred)
   0.5
+  >>> accuracy_score(y_true, y_pred, normalize=False)
+  2
+
+In the multilabel case with binary indicator format:
+
+  >>> accuracy_score(np.array([[0.0, 1.0], [1.0, 1.0]]), np.ones((2, 2)))
+  0.5
+
+and with a list of labels format:
+
+  >>> accuracy_score([(1,), (3,)], [(1, 2), tuple()])
+  0.0
 
 .. topic:: Example:
 
@@ -175,7 +203,7 @@ Classification report
 ---------------------
 The :func:`classification_report` function builds a text report showing the
 main classification metrics. Here a small example with custom ``target_names``
-and infered labels:
+and inferred labels:
 
    >>> from sklearn.metrics import classification_report
    >>> y_true = [0, 1, 2, 2, 0]
@@ -204,6 +232,98 @@ and infered labels:
   * See :ref:`example_grid_search_digits.py`
     for an example of classification report usage in parameter estimation using
     grid search with a nested cross-validation.
+
+Hamming loss
+------------
+The :func:`hamming_loss` computes the average Hamming loss or `Hamming
+distance <http://en.wikipedia.org/wiki/Hamming_distance>`_ between two sets
+of samples.
+
+If :math:`\hat{y}_j` is the predicted value for the :math:`j`-th labels of
+a given sample, :math:`y_j` is the corresponding true value and
+:math:`n_\text{labels}` is the number of class or labels, then the
+Hamming loss :math:`L_{Hamming}` between two samples is defined as:
+
+.. math::
+
+   L_{Hamming}(y, \hat{y}) = \frac{1}{n_\text{labels}} \sum_{j=0}^{n_\text{labels} - 1} 1(\hat{y}_j \not= y_j)
+
+where :math:`1(x)` is the `indicator function
+<http://en.wikipedia.org/wiki/Indicator_function>`_.
+
+  >>> from sklearn.metrics import hamming_loss
+  >>> y_pred = [1, 2, 3, 4]
+  >>> y_true = [2, 2, 3, 4]
+  >>> hamming_loss(y_true, y_pred)
+  0.25
+
+In the multilabel case with binary indicator format:
+
+  >>> hamming_loss(np.array([[0.0, 1.0], [1.0, 1.0]]), np.zeros((2, 2)))
+  0.75
+
+and with a list of labels format:
+
+  >>> hamming_loss([(1, 2), (3,)], [(1, 2), tuple()])  # doctest: +ELLIPSIS
+  0.166...
+
+.. note::
+
+    In multiclass classification, the Hamming loss correspond to the Hamming
+    distance between ``y_true`` and ``y_pred`` which is equivalent to the
+    :ref:`zero_one_loss` function.
+
+    In multilabel classification, the Hamming loss is different from the
+    zero-one loss. The zero-one loss penalizes any predictions that don't
+    exactly match the true required set of labels,
+    while Hamming loss will penalize the individual labels.
+    So, predicting a subset or superset of the true labels
+    will give a Hamming loss strictly between zero and one.
+
+    The Hamming loss is upperbounded by the zero-one loss. When normalized
+    over samples, the Hamming loss is always between zero and one.
+
+
+Jaccard similarity coefficient score
+------------------------------------
+
+The :func:`jaccard_similarity_score` function computes the average (default)
+or sum of `Jaccard similarity coefficients
+<http://en.wikipedia.org/wiki/Jaccard_index>`_, also called Jaccard index,
+between pairs of label sets.
+
+The Jaccard similarity coefficient of the :math:`i`-th samples
+with a ground truth label set :math:`y_i` and a predicted label set
+:math:`\hat{y}_i`  is defined as
+
+.. math::
+
+    J(y_i, \hat{y}_i) = \frac{|y_i \cap \hat{y}_i|}{|y_i \cup \hat{y}_i|}.
+
+In binary and multiclass classification, the Jaccard similarity coefficient
+score is equal to the classification accuracy.
+
+::
+
+  >>> import numpy as np
+  >>> from sklearn.metrics import jaccard_similarity_score
+  >>> y_pred = [0, 2, 1, 3]
+  >>> y_true = [0, 1, 2, 3]
+  >>> jaccard_similarity_score(y_true, y_pred)
+  0.5
+  >>> jaccard_similarity_score(y_true, y_pred, normalize=False)
+  2
+
+In the multilabel case with binary indicator format:
+
+  >>> jaccard_similarity_score(np.array([[0.0, 1.0], [1.0, 1.0]]), np.ones((2, 2)))
+  0.75
+
+and with a list of labels format:
+
+  >>> jaccard_similarity_score([(1,), (3,)], [(1, 2), tuple()])
+  0.25
+
 
 
 .. _precision_recall_f_measure_metrics:
@@ -295,7 +415,7 @@ In this context, we can define the notions of precision, recall and F-measure:
 
    F_\beta = (1 + \beta^2) \frac{\text{precision} \times \text{recall}}{\beta^2 \text{precision} + \text{recall}}.
 
-Here some small examples in binary classification:
+Here some small examples in binary classification::
 
   >>> from sklearn import metrics
   >>> y_pred = [0, 1, 0, 0]
@@ -329,9 +449,9 @@ Here some small examples in binary classification:
   array([ 0.35,  0.4 ,  0.8 ])
 
 
-Multiclass and multilabels classification
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-In multiclass and multilabels classification task, the notions of precision,
+Multiclass and multilabel classification
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+In multiclass and multilabel classification task, the notions of precision,
 recall and F-measures can be applied to each label independently.
 
 Moreover, these notions can be further extended. The functions
@@ -353,8 +473,8 @@ Moreover, these notions can be further extended. The functions
 
 Let's define some notations:
 
-   * :math:`n_\text{labels}` and :math:`n_\text{samples}` denotes respectively the
-     number of labels and the number of samples.
+   * :math:`n_\text{labels}` and :math:`n_\text{samples}` denotes respectively
+     the number of labels and the number of samples.
    * :math:`\texttt{precision}_j`, :math:`\texttt{recall}_j` and
      :math:`{F_\beta}_j` are respectively the precision, the recall and
      :math:`F_\beta` measure for the :math:`j`-th label;
@@ -409,7 +529,7 @@ their support
 
   \texttt{weighted\_{}F\_{}beta}(y,\hat{y}) &= \frac{1}{n_\text{samples}} \sum_{i=0}^{n_\text{samples} - 1} (1 + \beta^2)\frac{|y_i \cap \hat{y}_i|}{\beta^2 |\hat{y}_i| + |y_i|}.
 
-Here an example where ``average`` is set to ``average`` to ``macro``:
+Here an example where ``average`` is set to ``average`` to ``macro``::
 
   >>> from sklearn import metrics
   >>> y_true = [0, 1, 2, 0, 1, 2]
@@ -425,7 +545,7 @@ Here an example where ``average`` is set to ``average`` to ``macro``:
   >>> metrics.precision_recall_fscore_support(y_true, y_pred, average='macro')  # doctest: +ELLIPSIS
   (0.22..., 0.33..., 0.26..., None)
 
-Here an example where ``average`` is set to to ``micro``:
+Here an example where ``average`` is set to to ``micro``::
 
   >>> from sklearn import metrics
   >>> y_true = [0, 1, 2, 0, 1, 2]
@@ -441,7 +561,7 @@ Here an example where ``average`` is set to to ``micro``:
   >>> metrics.precision_recall_fscore_support(y_true, y_pred, average='micro')  # doctest: +ELLIPSIS
   (0.33..., 0.33..., 0.33..., None)
 
-Here an example where ``average`` is set to to ``weighted``:
+Here an example where ``average`` is set to to ``weighted``::
 
   >>> from sklearn import metrics
   >>> y_true = [0, 1, 2, 0, 1, 2]
@@ -457,7 +577,7 @@ Here an example where ``average`` is set to to ``weighted``:
   >>> metrics.precision_recall_fscore_support(y_true, y_pred, average='weighted')  # doctest: +ELLIPSIS
   (0.22..., 0.33..., 0.26..., None)
 
-Here an example where ``average`` is set to ``None``:
+Here an example where ``average`` is set to ``None``::
 
   >>> from sklearn import metrics
   >>> y_true = [0, 1, 2, 0, 1, 2]
@@ -490,7 +610,7 @@ value and :math:`w` is the predicted decisions as output by
   L_\text{Hinge}(y, w) = \max\left\{1 - wy, 0\right\} = \left|1 - wy\right|_+
 
 Here a small example demonstrating the use of the :func:`hinge_loss` function
-with a svm classifier:
+with a svm classifier::
 
   >>> from sklearn import svm
   >>> from sklearn.metrics import hinge_loss
@@ -590,6 +710,8 @@ The following figure shows an example of such ROC curve.
     for an example of receiver operating characteristic (ROC) metric to
     model species distribution.
 
+.. _zero_one_loss:
+
 Zero one loss
 --------------
 The :func:`zero_one_loss` function computes the sum or the average of the 0-1
@@ -597,16 +719,20 @@ classification loss (:math:`L_{0-1}`) over :math:`n_{\text{samples}}`. By
 defaults, the function normalizes over the sample. To get the sum of the
 :math:`L_{0-1}`, set ``normalize``  to ``False``.
 
+In multilabel classification, the :func:`zero_one_loss` function corresponds
+to the subset zero-one loss: the subset of labels must be correctly predict.
+
 If :math:`\hat{y}_i` is the predicted value of
 the :math:`i`-th sample and :math:`y_i` is the corresponding true value,
 then the 0-1 loss :math:`L_{0-1}` is defined as:
 
 .. math::
 
-   L_{0-1}(y_i, \hat{y}_i) = 1(\hat{y} \not= y)
+   L_{0-1}(y_i, \hat{y}_i) = 1(\hat{y}_i \not= y_i)
 
 where :math:`1(x)` is the `indicator function
 <http://en.wikipedia.org/wiki/Indicator_function>`_.
+
 
   >>> from sklearn.metrics import zero_one_loss
   >>> y_pred = [1, 2, 3, 4]
@@ -615,6 +741,17 @@ where :math:`1(x)` is the `indicator function
   0.25
   >>> zero_one_loss(y_true, y_pred, normalize=False)
   1
+
+In the multilabel case with binary indicator format:
+
+  >>> zero_one_loss(np.array([[0.0, 1.0], [1.0, 1.0]]), np.ones((2, 2)))
+  0.5
+
+and with a list of labels format:
+
+  >>> zero_one_loss([(1,), (3,)], [(1, 2), tuple()])
+  1.0
+
 
 .. topic:: Example:
 
@@ -651,7 +788,8 @@ variance is  estimated  as follow:
 
 The best possible score is 1.0, lower values are worse.
 
-Here a small example of usage of the :func:`explained_variance_scoreé` function:
+Here a small example of usage of the :func:`explained_variance_score`
+function::
 
     >>> from sklearn.metrics import explained_variance_score
     >>> y_true = [3, -0.5, 2, 7]
@@ -674,7 +812,7 @@ and :math:`y_i` is the corresponding true value, then the mean absolute error
 
   \text{MAE}(y, \hat{y}) = \frac{1}{n_{\text{samples}}} \sum_{i=0}^{n_{\text{samples}}-1} \left| y_i - \hat{y}_i \right|.
 
-Here a small example of usage of the :func:`mean_absolute_error` function:
+Here a small example of usage of the :func:`mean_absolute_error` function::
 
   >>> from sklearn.metrics import mean_absolute_error
   >>> y_true = [3, -0.5, 2, 7]
@@ -703,7 +841,8 @@ and :math:`y_i` is the corresponding true value, then the mean squared error
 
   \text{MSE}(y, \hat{y}) = \frac{1}{n_\text{samples}} \sum_{i=0}^{n_\text{samples} - 1} (y_i - \hat{y}_i)^2.
 
-Here a small example of usage of the :func:`mean_squared_error` function:
+Here a small example of usage of the :func:`mean_squared_error`
+function::
 
   >>> from sklearn.metrics import mean_squared_error
   >>> y_true = [3, -0.5, 2, 7]
@@ -738,7 +877,7 @@ over :math:`n_{\text{samples}}` is defined as
 
 where :math:`\bar{y} =  \frac{1}{n_{\text{samples}}} \sum_{i=0}^{n_{\text{samples}} - 1} y_i`.
 
-Here a small example of usage of the :func:`r2_score` function:
+Here a small example of usage of the :func:`r2_score` function::
 
   >>> from sklearn.metrics import r2_score
   >>> y_true = [3, -0.5, 2, 7]
@@ -759,8 +898,114 @@ Here a small example of usage of the :func:`r2_score` function:
 
 Clustering metrics
 ======================
+
 The :mod:`sklearn.metrics` implements several losses, scores and utility
 function for more information see the :ref:`clustering_evaluation` section.
+
+
+.. _score_func_objects:
+
+.. currentmodule:: sklearn
+
+`Scoring` objects: defining your scoring rules
+===============================================
+While the above functions provide a simple interface for most use-cases, they
+can not directly be used for model selection and evaluation using
+:class:`grid_search.GridSearchCV` and
+:func:`cross_validation.cross_val_score`, as scoring functions have different
+signatures and might require additional parameters.
+
+Instead, :class:`grid_search.GridSearchCV` and
+:func:`cross_validation.cross_val_score` both take callables that implement
+estimator dependent functions. That allows for very flexible evaluation of
+models, for example taking complexity of the model into account.
+
+For scoring functions that take no additional parameters (which are most of
+them), you can simply provide a string as the ``scoring`` parameter. Possible
+values are:
+
+
+===================     ===============================================
+Scoring                 Function
+===================     ===============================================
+**Classification**
+'accuracy'              :func:`sklearn.metrics.accuracy_score`
+'average_precision'     :func:`sklearn.metrics.average_precision_score`
+'f1'                    :func:`sklearn.metrics.f1_score`
+'precision'             :func:`sklearn.metrics.precision_score`
+'recall'                :func:`sklearn.metrics.recall_score`
+'roc_auc'               :func:`sklearn.metrics.auc_score`
+
+**Clustering**
+'ari'`                  :func:`sklearn.metrics.adjusted_rand_score`
+
+**Regression**
+'mse'                   :func:`sklearn.metrics.mean_squared_error`
+'r2'                    :func:`sklearn.metrics.r2_score`
+===================     ===============================================
+
+The corresponding scorer objects are stored in the dictionary
+``sklearn.metrics.SCORERS``.
+
+.. currentmodule:: sklearn.metrics
+
+Creating scoring objects from score functions
+---------------------------------------------
+If you want to use a scoring function that takes additional parameters, such as
+:func:`fbeta_score`, you need to generate an appropriate scoring object.  The
+simplest way to generate a callable object for scoring is by using
+:class:`Scorer`.
+:class:`Scorer` converts score functions as above into callables that can be
+used for model evaluation.
+
+One typical use case is to wrap an existing scoring function from the library
+with non default value for its parameters such as the beta parameter for the
+:func:`fbeta_score` function::
+
+    >>> from sklearn.metrics import fbeta_score, Scorer
+    >>> ftwo_scorer = Scorer(fbeta_score, beta=2)
+    >>> from sklearn.grid_search import GridSearchCV
+    >>> from sklearn.svm import LinearSVC
+    >>> grid = GridSearchCV(LinearSVC(), param_grid={'C': [1, 10]}, scoring=ftwo_scorer)
+
+The second use case is to help build a completely new and custom scorer object
+from a simple python function::
+
+    >>> def my_custom_loss_func(ground_truth, predictions):
+    ...     diff = np.abs(ground_truth - predictions).max()
+    ...     return np.log(1 + diff)
+    ...
+    >>> my_custom_scorer = Scorer(my_custom_loss_func, greater_is_better=False)
+    >>> grid = GridSearchCV(LinearSVC(), param_grid={'C': [1, 10]}, scoring=my_custom_scorer)
+
+:class:`Scorer` takes as parameters the function you want to use, whether it is
+a score (``greater_is_better=True``) or a loss (``greater_is_better=False``),
+whether the function you provided takes predictions as input
+(``needs_threshold=False``) or needs confidence scores
+(``needs_threshold=True``) and any additional parameters, such as ``beta`` in
+the example above.
+
+
+Implementing your own scoring object
+------------------------------------
+You can generate even more flexible model scores by constructing your own
+scoring object from scratch, without using the :class:`Scorer` helper class.
+The requirements that a callable can be used for model selection are as
+follows:
+
+- It can be called with parameters ``(estimator, X, y)``, where ``estimator``
+  it the model that should be evaluated, ``X`` is validation data and ``y`` is
+  the ground truth target for ``X`` (in the supervised case) or ``None`` in the
+  unsupervised case.
+
+- The call returns a number indicating the quality of estimator.
+
+- The callable has a boolean attribute ``greater_is_better`` which indicates whether
+  high or low values correspond to a better estimator.
+
+Objects that meet those conditions as said to implement the sklearn Scorer
+protocol.
+
 
 .. _dummy_estimators:
 
@@ -769,10 +1014,9 @@ Dummy estimators
 
 .. currentmodule:: sklearn.dummy
 
-When doing supervised learning, a simple sanity check consists in comparing one's
-estimator against simple rules of thumb.
-:class:`DummyClassifier` implements three such simple strategies for
-classification:
+When doing supervised learning, a simple sanity check consists in comparing
+one's estimator against simple rules of thumb. :class:`DummyClassifier`
+implements three such simple strategies for classification:
 
 - `stratified` generates randomly predictions by respecting the training
   set's class distribution,

@@ -11,11 +11,11 @@ data-points are not linearly seperable.
 
 
 """
-print __doc__
+print(__doc__)
 
 
 # Code source: Gael Varoqueux
-# License: BSD
+# License: BSD 3 clause
 
 import numpy as np
 import pylab as pl

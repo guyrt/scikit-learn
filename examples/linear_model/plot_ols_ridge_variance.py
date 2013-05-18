@@ -20,12 +20,12 @@ of the prediction is much more stable and the variance
 in the line itself is greatly reduced, in comparison to that
 of the standard linear regression
 """
-print __doc__
+print(__doc__)
 
 
 # Code source: Gael Varoqueux
 # Modified for Documentation merge by Jaques Grobler
-# License: BSD
+# License: BSD 3 clause
 
 
 import numpy as np

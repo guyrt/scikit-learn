@@ -1,5 +1,153 @@
 .. currentmodule:: sklearn
 
+.. _changes_0_14:
+
+0.14
+====
+
+Changelog
+---------
+
+   - Added an interactive version of `Andreas Müller`_'s
+     `Machine Learning Cheat Sheet (for scikit-learn)
+     <http://peekaboo-vision.blogspot.de/2013/01/machine-learning-cheat-sheet-for-scikit.html>`_
+     to the documentation. See :ref:`Choosing the right estimator <ml_map>`.
+     By `Jaques Grobler`_.
+
+   - :class:`grid_search.GridSearchCV` and
+     :func:`cross_validation.cross_val_score` now support the use of advanced
+     scoring function such as area under the ROC curve and f-beta scores.
+     See :ref:`score_func_objects` for details. By `Andreas Müller`_.
+     Passing a function from :mod:`sklearn.metrics` as ``score_func`` is
+     deprecated.
+
+   - Added :class:`ensemble.AdaBoostClassifier` and
+     :class:`ensemble.AdaBoostRegressor`, by `Noel Dawe`_  and
+     `Gilles Louppe`_. See the :ref:`AdaBoost <adaboost>` section of the user
+     guide for details and examples.
+
+   - :func:`metrics.accuracy_score`, :func:`metrics.zero_one_loss` support
+     multi-label classification and two new metrics :func:`metrics.hamming_loss`
+     and :func:`metrics.jaccard_similarity_score`
+     are added with multi-label support by `Arnaud Joly`_.
+
+   - Speed and memory usage improvements in
+     :class:`feature_extraction.text.CountVectorizer` and
+     :class:`feature_extraction.text.TfidfVectorizer`,
+     by Jochen Wersdörfer and Roman Sinayev.
+
+   - The ``min_df`` parameter in
+     :class:`feature_extraction.text.CountVectorizer` and
+     :class:`feature_extraction.text.TfidfVectorizer`, which used to be 2,
+     has been reset to 1 to avoid unpleasant surprises (empty vocabularies)
+     for novice users who try it out on tiny document collections.
+     A value of at least 2 is still recommended for practical use.
+
+   - Feature importances in :class:`tree.DecisionTreeClassifier`,
+     :class:`tree.DecisionTreeRegressor` and all derived ensemble estimators
+     are now computed on the fly when accessing  the ``feature_importances_``
+     attribute. Setting ``compute_importances=True`` is no longer required.
+     By `Gilles Louppe`_.
+
+   - Added :class:`grid_search.RandomizedSearchCV` and
+     :class:`grid_search.ParameterSampler` for randomized hyperparameter
+     optimization. By `Andreas Müller`_.
+
+   - :class:`svm.LinearSVC`, :class:`linear_model.SGDClassifier` and
+     :class:`linear_model.SGDRegressor` now have a ``sparsify`` method that
+     converts their ``coef_`` into a sparse matrix, meaning stored models
+     trained using these estimators can be made much more compact.
+
+   - :class:`linear_model.SGDClassifier` now produces multiclass probability
+     estimates when trained under log loss or modified Huber loss.
+
+   - Hyperlinks to documentation in example code on the website by
+     `Martin Luessi`_.
+
+   - Fixed bug in :class:`preprocessing.MinMaxScaler` causing incorrect scaling
+     of the features for non-default ``feature_range`` settings. By `Andreas
+     Müller`_.
+
+   - ``max_features`` in :class:`tree.DecisionTreeClassifier`,
+     :class:`tree.DecisionTreeRegressor` and all derived ensemble estimators
+     now supports percentage values. By `Gilles Louppe`_.
+
+   - Performance improvements in :class:`isotonic.IsotonicRegression` by
+     Nelle Varoquaux.
+
+   - :func:`metrics.accuracy_score` has an option normalize to return
+     the fraction or the number of correctly classified sample
+     by `Arnaud Joly`_.
+
+   - A bug that caused :class:`ensemble.AdaBoostClassifier`'s to output
+     incorrect probabilities has been fixed.
+
+
+API changes summary
+-------------------
+
+   - :class:`grid_search.IterGrid` was renamed to
+     :class:`grid_search.ParameterGrid`.
+
+   - Fixed bug in :class:`KFold` causing imperfect class balance in some
+     cases. By `Alexandre Gramfort`_ and Tadej Janež.
+
+   - :class:`sklearn.decomposition.KernelPCA` now always returns output with
+     ``n_components`` components, unless the new parameter ``remove_zero_eig``
+     is set to ``True``. This new behavior is consistent with the way
+     kernel PCA was always documented; previously, the removal of components
+     with zero eigenvalues was tacitly performed on all data.
+
+   - ``gcv_mode="auto"`` no longer tries to perform SVD on a densified
+     sparse matrix in :class:`sklearn.linear_model.RidgeCV`.
+
+
+.. _changes_0_13_1:
+
+0.13.1
+======
+
+The 0.13.1 release only fixes some bugs and does not add any new functionality.
+
+Changelog
+---------
+
+    - Fixed a testing error caused by the function :func:`cross_validation.train_test_split` being
+      interpreted as a test by `Yaroslav Halchenko`_.
+
+    - Fixed a bug in the reassignment of small clusters in the :class:`cluster.MiniBatchKMeans`
+      by `Gael Varoquaux`_.
+
+    - Fixed default value of ``gamma`` in :class:`decomposition.KernelPCA` by `Lars Buitinck`_.
+
+    - Updated joblib to ``0.7.0d`` by `Gael Varoquaux`_.
+
+    - Fixed scaling of the deviance in :class:`ensemble.GradientBoostingClassifier` by `Peter Prettenhofer`_.
+
+    - Better tie-breaking in :class:`multiclass.OneVsOneClassifier` by `Andreas Müller`_.
+
+    - Other small improvements to tests and documentation.
+
+People
+------
+List of contributors for release 0.13.1 by number of commits.
+ * 16  `Lars Buitinck`_
+ * 12  `Andreas Müller`_
+ *  8  `Gael Varoquaux`_
+ *  5  Robert Marchman
+ *  3  `Peter Prettenhofer`_
+ *  2  Hrishikesh Huilgolkar
+ *  1  Bastiaan van den Berg
+ *  1  Diego Molla
+ *  1  `Gilles Louppe`_
+ *  1  `Mathieu Blondel`_
+ *  1  Nelle Varoquaux
+ *  1  Rafael Cunha de Almeida
+ *  1  Rolando Espinoza La fuente
+ *  1  `Vlad Niculae`_
+ *  1  `Yaroslav Halchenko`_
+
+
 .. _changes_0_13:
 
 0.13
@@ -52,11 +200,13 @@ New Estimator Classes
      sparse representations using ensembles of totally random trees by  `Andreas Müller`_.
      See :ref:`random_trees_embedding` in the user guide.
 
-
    - :class:`manifold.SpectralEmbedding` and function
      :func:`manifold.spectral_embedding`, implementing the "laplacian
      eigenmaps" transformation for nonlinear dimensionality reduction by Wei
      Li. See :ref:`spectral_embedding` in the user guide.
+
+   - :class:`isotonic.IsotonicRegression` by `Fabian Pedregosa`_, `Alexandre Gramfort`_
+     and Nelle Varoquaux.
 
 
 Changelog
@@ -1763,3 +1913,5 @@ David Huard, Dave Morrill, Ed Schofield, Travis Oliphant, Pearu Peterson.
 .. _Arnaud Joly: http://www.ajoly.org
 
 .. _Rob Zinkov: http://zinkov.com
+
+.. _Martin Luessi: https://github.com/mluessi

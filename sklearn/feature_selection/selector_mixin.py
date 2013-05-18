@@ -1,10 +1,11 @@
 # Authors: Gilles Louppe, Mathieu Blondel
-# License: BSD
+# License: BSD 3 clause
 
 import numpy as np
 
 from ..base import TransformerMixin
-from ..utils import safe_mask, atleast2d_or_csr
+from ..externals import six
+from ..utils import safe_mask, atleast2d_or_csc
 
 
 class SelectorMixin(TransformerMixin):
@@ -36,7 +37,7 @@ class SelectorMixin(TransformerMixin):
         X_r : array of shape [n_samples, n_selected_features]
             The input samples with only the selected features.
         """
-        X = atleast2d_or_csr(X)
+        X = atleast2d_or_csc(X)
         # Retrieve importance vector
         if hasattr(self, "feature_importances_"):
             importances = self.feature_importances_
@@ -68,7 +69,7 @@ class SelectorMixin(TransformerMixin):
             else:
                 threshold = getattr(self, "threshold", "mean")
 
-        if isinstance(threshold, basestring):
+        if isinstance(threshold, six.string_types):
             if "*" in threshold:
                 scale, reference = threshold.split("*")
                 scale = float(scale.strip())
@@ -93,7 +94,12 @@ class SelectorMixin(TransformerMixin):
             threshold = float(threshold)
 
         # Selection
-        mask = importances >= threshold
+        try:
+            mask = importances >= threshold
+        except TypeError:
+            # Fails in Python 3.x when threshold is str;
+            # result is array of True
+            raise ValueError("Invalid threshold: all features are discarded.")
 
         if np.any(mask):
             mask = safe_mask(X, mask)

@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 import scipy.sparse as sp
 import warnings
@@ -11,6 +13,7 @@ from ..utils import atleast2d_or_csr, array2d, check_random_state
 from ..utils import ConvergenceWarning, compute_class_weight, deprecated
 from ..utils.fixes import unique
 from ..utils.extmath import safe_sparse_dot
+from ..externals import six
 
 
 LIBSVM_IMPL = ['c_svc', 'nu_svc', 'one_class', 'epsilon_svr', 'nu_svr']
@@ -31,10 +34,10 @@ def _one_vs_one_coef(dual_coef, n_support, support_vectors):
     # would have to take care in the sparse case
     coef = []
     sv_locs = np.cumsum(np.hstack([[0], n_support]))
-    for class1 in xrange(n_class):
+    for class1 in range(n_class):
         # SVs for class1:
         sv1 = support_vectors[sv_locs[class1]:sv_locs[class1 + 1], :]
-        for class2 in xrange(class1 + 1, n_class):
+        for class2 in range(class1 + 1, n_class):
             # SVs for class1:
             sv2 = support_vectors[sv_locs[class2]:sv_locs[class2 + 1], :]
 
@@ -49,7 +52,7 @@ def _one_vs_one_coef(dual_coef, n_support, support_vectors):
     return coef
 
 
-class BaseLibSVM(BaseEstimator):
+class BaseLibSVM(six.with_metaclass(ABCMeta, BaseEstimator)):
     """Base class for estimators that use libsvm as backing library
 
     This implements support vector machine classification and regression.
@@ -58,26 +61,18 @@ class BaseLibSVM(BaseEstimator):
     """
     # see ./classes.py for SVC class.
 
-    __metaclass__ = ABCMeta
     _sparse_kernels = ["linear", "poly", "rbf", "sigmoid", "precomputed"]
 
     @abstractmethod
     def __init__(self, impl, kernel, degree, gamma, coef0,
                  tol, C, nu, epsilon, shrinking, probability, cache_size,
-                 sparse, class_weight, verbose, max_iter):
+                 class_weight, verbose, max_iter):
 
         if not impl in LIBSVM_IMPL:  # pragma: no cover
             raise ValueError("impl should be one of %s, %s was given" % (
                 LIBSVM_IMPL, impl))
 
-        if C is None:  # pragma: no cover
-            warnings.warn("Using 'None' for C of BaseLibSVM is deprecated "
-                          "since version 0.12, and backward compatibility "
-                          "won't be maintained from version 0.14 onward. "
-                          "Setting C=1.0.", DeprecationWarning, stacklevel=2)
-            C = 1.0
-
-        self.impl = impl
+        self._impl = impl
         self.kernel = kernel
         self.degree = degree
         self.gamma = gamma
@@ -89,7 +84,6 @@ class BaseLibSVM(BaseEstimator):
         self.shrinking = shrinking
         self.probability = probability
         self.cache_size = cache_size
-        self.sparse = sparse
         self.class_weight = class_weight
         self.verbose = verbose
         self.max_iter = max_iter
@@ -97,7 +91,7 @@ class BaseLibSVM(BaseEstimator):
     @property
     def _pairwise(self):
         kernel = self.kernel
-        return kernel == "precomputed" or hasattr(kernel, "__call__")
+        return kernel == "precomputed" or callable(kernel)
 
     def fit(self, X, y, sample_weight=None):
         """Fit the SVM model according to the given training data.
@@ -109,7 +103,7 @@ class BaseLibSVM(BaseEstimator):
             and n_features is the number of features.
 
         y : array-like, shape = [n_samples]
-            Target values (integers in classification, real numbers in
+            Target values (class labels in classification, real numbers in
             regression)
 
         sample_weight : array-like, shape = [n_samples], optional
@@ -129,10 +123,7 @@ class BaseLibSVM(BaseEstimator):
         matrices as input.
         """
 
-        if self.sparse == "auto":
-            self._sparse = sp.isspmatrix(X) and not self._pairwise
-        else:
-            self._sparse = self.sparse
+        self._sparse = sp.isspmatrix(X) and not self._pairwise
 
         if self._sparse and self._pairwise:
             raise ValueError("Sparse precomputed kernels are not supported. "
@@ -140,24 +131,12 @@ class BaseLibSVM(BaseEstimator):
                              "by not using the ``sparse`` parameter")
 
         X = atleast2d_or_csr(X, dtype=np.float64, order='C')
-
-        if self.impl in ['c_svc', 'nu_svc']:
-            # classification
-            self.classes_, y = unique(y, return_inverse=True)
-            self.class_weight_ = compute_class_weight(self.class_weight,
-                                                      self.classes_, y)
-        else:
-            self.class_weight_ = np.empty(0)
-        if self.impl != "one_class" and len(np.unique(y)) < 2:
-            raise ValueError("The number of classes has to be greater than"
-                             " one.")
-
-        y = np.asarray(y, dtype=np.float64, order='C')
+        y = self._validate_targets(y)
 
         sample_weight = np.asarray([]
                                    if sample_weight is None
                                    else sample_weight, dtype=np.float64)
-        solver_type = LIBSVM_IMPL.index(self.impl)
+        solver_type = LIBSVM_IMPL.index(self._impl)
 
         # input validation
         if solver_type != 2 and X.shape[0] != y.shape[0]:
@@ -182,12 +161,12 @@ class BaseLibSVM(BaseEstimator):
             self._gamma = self.gamma
 
         kernel = self.kernel
-        if hasattr(kernel, '__call__'):
+        if callable(kernel):
             kernel = 'precomputed'
 
         fit = self._sparse_fit if self._sparse else self._dense_fit
         if self.verbose:  # pragma: no cover
-            print '[LibSVM]',
+            print('[LibSVM]', end='')
         fit(X, y, sample_weight, solver_type, kernel)
 
         self.shape_fit_ = X.shape
@@ -195,28 +174,37 @@ class BaseLibSVM(BaseEstimator):
         # In binary case, we need to flip the sign of coef, intercept and
         # decision function. Use self._intercept_ internally.
         self._intercept_ = self.intercept_.copy()
-        if self.impl in ['c_svc', 'nu_svc'] and len(self.classes_) == 2:
+        if self._impl in ['c_svc', 'nu_svc'] and len(self.classes_) == 2:
             self.intercept_ *= -1
         return self
+
+    def _validate_targets(self, y):
+        """Validation of y and class_weight.
+
+        Default implementation for SVR and one-class; overridden in BaseSVC.
+        """
+        # XXX this is ugly.
+        # Regression models should not have a class_weight_ attribute.
+        self.class_weight_ = np.empty(0)
+        return np.asarray(y, dtype=np.float64, order='C')
 
     def _warn_from_fit_status(self):
         assert self.fit_status_ in (0, 1)
         if self.fit_status_ == 1:
             warnings.warn('Solver terminated early (max_iter=%i).'
                           '  Consider pre-processing your data with'
-                          ' StandardScalar or MinMaxScalar.'
+                          ' StandardScaler or MinMaxScaler.'
                           % self.max_iter, ConvergenceWarning)
 
     def _dense_fit(self, X, y, sample_weight, solver_type, kernel):
-
-        if hasattr(self.kernel, '__call__'):
+        if callable(self.kernel):
             # you must store a reference to X to compute the kernel in predict
             # TODO: add keyword copy to copy on demand
             self.__Xfit = X
             X = self._compute_kernel(X)
 
-        if hasattr(self.kernel, '__call__') and X.shape[0] != X.shape[1]:
-            raise ValueError("X.shape[0] should be equal to X.shape[1]")
+            if X.shape[0] != X.shape[1]:
+                raise ValueError("X.shape[0] should be equal to X.shape[1]")
 
         libsvm.set_verbosity_wrap(self.verbose)
 
@@ -244,8 +232,9 @@ class BaseLibSVM(BaseEstimator):
 
         libsvm_sparse.set_verbosity_wrap(self.verbose)
 
-        self.support_vectors_, dual_coef_data, self.intercept_, self._label, \
-            self.n_support_, self.probA_, self.probB_, self.fit_status_ = \
+        self.support_, self.support_vectors_, dual_coef_data, \
+            self.intercept_, self._label, self.n_support_, \
+            self.probA_, self.probB_, self.fit_status_ = \
             libsvm_sparse.libsvm_sparse_train(
                 X.shape[1], X.data, X.indices, X.indptr, y, solver_type,
                 kernel_type, self.degree, self._gamma, self.coef0, self.tol,
@@ -266,11 +255,7 @@ class BaseLibSVM(BaseEstimator):
             (n_class, n_SV))
 
     def predict(self, X):
-        """Perform classification or regression samples in X.
-
-        For a classification model, the predicted class for each
-        sample in X is returned.  For a regression model, the function
-        value of X calculated is returned.
+        """Perform regression on samples in X.
 
         For an one-class model, +1 or -1 is returned.
 
@@ -284,11 +269,7 @@ class BaseLibSVM(BaseEstimator):
         """
         X = self._validate_for_predict(X)
         predict = self._sparse_predict if self._sparse else self._dense_predict
-        y = predict(X)
-        if self.impl in ['c_svc', 'nu_svc']:
-            # classification
-            y = self.classes_.take(y.astype(np.int))
-        return y
+        return predict(X)
 
     def _dense_predict(self, X):
         n_samples, n_features = X.shape
@@ -297,7 +278,7 @@ class BaseLibSVM(BaseEstimator):
             X = array2d(X, order='C')
 
         kernel = self.kernel
-        if hasattr(self.kernel, "__call__"):
+        if callable(self.kernel):
             kernel = 'precomputed'
             if X.shape[1] != self.shape_fit_[0]:
                 raise ValueError("X.shape[1] = %d should be equal to %d, "
@@ -306,7 +287,7 @@ class BaseLibSVM(BaseEstimator):
 
         C = 0.0  # C is not useful here
 
-        svm_type = LIBSVM_IMPL.index(self.impl)
+        svm_type = LIBSVM_IMPL.index(self._impl)
 
         return libsvm.predict(
             X, self.support_, self.support_vectors_, self.n_support_,
@@ -322,7 +303,7 @@ class BaseLibSVM(BaseEstimator):
         X = sp.csr_matrix(X, dtype=np.float64)
 
         kernel = self.kernel
-        if hasattr(kernel, '__call__'):
+        if callable(kernel):
             kernel = 'precomputed'
 
         kernel_type = self._sparse_kernels.index(kernel)
@@ -335,7 +316,7 @@ class BaseLibSVM(BaseEstimator):
             self.support_vectors_.indices,
             self.support_vectors_.indptr,
             self.dual_coef_.data, self._intercept_,
-            LIBSVM_IMPL.index(self.impl), kernel_type,
+            LIBSVM_IMPL.index(self._impl), kernel_type,
             self.degree, self._gamma, self.coef0, self.tol,
             C, self.class_weight_,
             self.nu, self.epsilon, self.shrinking,
@@ -344,7 +325,7 @@ class BaseLibSVM(BaseEstimator):
 
     def _compute_kernel(self, X):
         """Return the data transformed by a callable kernel"""
-        if hasattr(self.kernel, '__call__'):
+        if callable(self.kernel):
             # in the case of precomputed kernel given as a function, we
             # have to compute explicitly the kernel matrix
             kernel = self.kernel(X, self.__Xfit)
@@ -371,18 +352,19 @@ class BaseLibSVM(BaseEstimator):
                                       " sparse SVM.")
 
         X = self._validate_for_predict(X)
+        X = self._compute_kernel(X)
 
         C = 0.0  # C is not useful here
 
         kernel = self.kernel
-        if hasattr(kernel, '__call__'):
+        if callable(kernel):
             kernel = 'precomputed'
 
         dec_func = libsvm.decision_function(
             X, self.support_, self.support_vectors_, self.n_support_,
             self.dual_coef_, self._intercept_, self._label,
             self.probA_, self.probB_,
-            svm_type=LIBSVM_IMPL.index(self.impl),
+            svm_type=LIBSVM_IMPL.index(self._impl),
             kernel=kernel, C=C, nu=self.nu,
             probability=self.probability, degree=self.degree,
             shrinking=self.shrinking, tol=self.tol, cache_size=self.cache_size,
@@ -390,7 +372,7 @@ class BaseLibSVM(BaseEstimator):
 
         # In binary case, we need to flip the sign of coef, intercept and
         # decision function.
-        if self.impl in ['c_svc', 'nu_svc'] and len(self.classes_) == 2:
+        if self._impl in ['c_svc', 'nu_svc'] and len(self.classes_) == 2:
             return -dec_func
 
         return dec_func
@@ -402,8 +384,7 @@ class BaseLibSVM(BaseEstimator):
         if self._sparse:
             X.sort_indices()
 
-        if (sp.issparse(X) and not self._sparse and
-                not hasattr(self.kernel, '__call__')):
+        if sp.issparse(X) and not self._sparse and not callable(self.kernel):
             raise ValueError(
                 "cannot use sparse input in %r trained on dense data"
                 % type(self).__name__)
@@ -448,15 +429,38 @@ class BaseLibSVM(BaseEstimator):
             coef.flags.writeable = False
         return coef
 
-    @property
-    @deprecated("The ``labels_`` attribute has been renamed to ``classes_`` "
-                "for consistency and will be removed in 0.15.")
-    def label_(self):
-        return self.classes_
-
 
 class BaseSVC(BaseLibSVM, ClassifierMixin):
     """ABC for LibSVM-based classifiers."""
+
+    def _validate_targets(self, y):
+        cls, y = unique(y, return_inverse=True)
+        self.class_weight_ = compute_class_weight(self.class_weight, cls, y)
+        if len(cls) < 2:
+            raise ValueError(
+                "The number of classes has to be greater than one; got %d"
+                % len(cls))
+
+        self.classes_ = cls
+
+        return np.asarray(y, dtype=np.float64, order='C')
+
+    def predict(self, X):
+        """Perform classification on samples in X.
+
+        For an one-class model, +1 or -1 is returned.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape = [n_samples, n_features]
+
+        Returns
+        -------
+        y_pred : array, shape = [n_samples]
+            Class labels for samples in X.
+        """
+        y = super(BaseSVC, self).predict(X)
+        return self.classes_.take(y.astype(np.int))
 
     def predict_proba(self, X):
         """Compute probabilities of possible outcomes for samples in X.
@@ -472,8 +476,8 @@ class BaseSVC(BaseLibSVM, ClassifierMixin):
         -------
         X : array-like, shape = [n_samples, n_classes]
             Returns the probability of the sample for each class in
-            the model, where classes are ordered by arithmetical
-            order.
+            the model. The columns correspond to the classes in sorted
+            order, as they appear in the attribute `classes_`.
 
         Notes
         -----
@@ -486,7 +490,7 @@ class BaseSVC(BaseLibSVM, ClassifierMixin):
             raise NotImplementedError(
                 "probability estimates must be enabled to use this method")
 
-        if self.impl not in ('c_svc', 'nu_svc'):
+        if self._impl not in ('c_svc', 'nu_svc'):
             raise NotImplementedError("predict_proba only implemented for SVC "
                                       "and NuSVC")
 
@@ -509,8 +513,8 @@ class BaseSVC(BaseLibSVM, ClassifierMixin):
         -------
         X : array-like, shape = [n_samples, n_classes]
             Returns the log-probabilities of the sample for each class in
-            the model, where classes are ordered by arithmetical
-            order.
+            the model. The columns correspond to the classes in sorted
+            order, as they appear in the attribute `classes_`.
 
         Notes
         -----
@@ -527,10 +531,10 @@ class BaseSVC(BaseLibSVM, ClassifierMixin):
         C = 0.0  # C is not useful here
 
         kernel = self.kernel
-        if hasattr(kernel, '__call__'):
+        if callable(kernel):
             kernel = 'precomputed'
 
-        svm_type = LIBSVM_IMPL.index(self.impl)
+        svm_type = LIBSVM_IMPL.index(self._impl)
         pprob = libsvm.predict_proba(
             X, self.support_, self.support_vectors_, self.n_support_,
             self.dual_coef_, self._intercept_, self._label,
@@ -546,7 +550,7 @@ class BaseSVC(BaseLibSVM, ClassifierMixin):
         X.data = np.asarray(X.data, dtype=np.float64, order='C')
 
         kernel = self.kernel
-        if hasattr(kernel, '__call__'):
+        if callable(kernel):
             kernel = 'precomputed'
 
         kernel_type = self._sparse_kernels.index(kernel)
@@ -557,12 +561,18 @@ class BaseSVC(BaseLibSVM, ClassifierMixin):
             self.support_vectors_.indices,
             self.support_vectors_.indptr,
             self.dual_coef_.data, self._intercept_,
-            LIBSVM_IMPL.index(self.impl), kernel_type,
+            LIBSVM_IMPL.index(self._impl), kernel_type,
             self.degree, self._gamma, self.coef0, self.tol,
             self.C, self.class_weight_,
             self.nu, self.epsilon, self.shrinking,
             self.probability, self.n_support_, self._label,
             self.probA_, self.probB_)
+
+    @property
+    @deprecated("The ``label_`` attribute has been renamed to ``classes_`` "
+                "for consistency and will be removed in 0.15.")
+    def label_(self):
+        return self.classes_
 
 
 class BaseLibLinear(BaseEstimator):
@@ -582,13 +592,6 @@ class BaseLibLinear(BaseEstimator):
     def __init__(self, penalty='l2', loss='l2', dual=True, tol=1e-4, C=1.0,
                  multi_class='ovr', fit_intercept=True, intercept_scaling=1,
                  class_weight=None, verbose=0, random_state=None):
-
-        if C is None:  # pragma: no cover
-            warnings.warn("Using 'None' for C of BaseLibLinear is deprecated "
-                          "since version 0.12, and backward compatibility "
-                          "won't be maintained from version 0.14 onward. "
-                          "Setting C=1.0.", DeprecationWarning, stacklevel=2)
-            C = 1.0
 
         self.penalty = penalty
         self.loss = loss
@@ -628,7 +631,7 @@ class BaseLibLinear(BaseEstimator):
                                 "and loss='l1' is not supported.")
             elif self.penalty.upper() == 'L2' and self.loss.upper() == 'L1':
                 # this has to be in primal
-                error_string = ("loss='l2' and penalty='l1' is "
+                error_string = ("penalty='l2' and ploss='l1' is "
                                 "only supported when dual='true'.")
             else:
                 # only PL1 in dual remains
@@ -666,7 +669,6 @@ class BaseLibLinear(BaseEstimator):
                              " one.")
 
         X = atleast2d_or_csr(X, dtype=np.float64, order="C")
-        y = np.asarray(y, dtype=np.float64).ravel()
 
         self.class_weight_ = compute_class_weight(self.class_weight,
                                                   self.classes_, y)
@@ -678,22 +680,23 @@ class BaseLibLinear(BaseEstimator):
 
         liblinear.set_verbosity_wrap(self.verbose)
 
-        if sp.isspmatrix(X):
-            train = liblinear.csr_train_wrap
-        else:
-            train = liblinear.train_wrap
-
         rnd = check_random_state(self.random_state)
         if self.verbose:
-            print '[LibLinear]',
-        self.raw_coef_ = train(X, y, self._get_solver_type(), self.tol,
-                               self._get_bias(), self.C,
-                               self.class_weight_,
-                               # seed for srand in range [0..INT_MAX);
-                               # due to limitations in Numpy on 32-bit
-                               # platforms, we can't get to the UINT_MAX
-                               # limit that srand supports
-                               rnd.randint(np.iinfo('i').max))
+            print('[LibLinear]', end='')
+
+        # LibLinear wants targets as doubles, even for classification
+        y = np.asarray(y, dtype=np.float64).ravel()
+        self.raw_coef_ = liblinear.train_wrap(X, y,
+                                              sp.isspmatrix(X),
+                                              self._get_solver_type(),
+                                              self.tol, self._get_bias(),
+                                              self.C,
+                                              self.class_weight_,
+                                              rnd.randint(np.iinfo('i').max))
+        # Regarding rnd.randint(..) in the above signature:
+        # seed for srand in range [0..INT_MAX); due to limitations in Numpy
+        # on 32-bit platforms, we can't get to the UINT_MAX limit that
+        # srand supports
 
         if self.fit_intercept:
             self.coef_ = self.raw_coef_[:, :-1]
@@ -709,7 +712,7 @@ class BaseLibLinear(BaseEstimator):
         return self._enc.classes_
 
     @property
-    @deprecated("The ``labels_`` attribute has been renamed to ``classes_`` "
+    @deprecated("The ``label_`` attribute has been renamed to ``classes_`` "
                 "for consistency and will be removed in 0.15.")
     def label_(self):
         return self._enc.classes_

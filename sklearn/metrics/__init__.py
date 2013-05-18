@@ -12,7 +12,9 @@ from .metrics import (accuracy_score,
                       explained_variance_score,
                       f1_score,
                       fbeta_score,
+                      hamming_loss,
                       hinge_loss,
+                      jaccard_similarity_score,
                       matthews_corrcoef,
                       mean_squared_error,
                       mean_absolute_error,
@@ -27,6 +29,8 @@ from .metrics import (accuracy_score,
 # Will be removed in 0.15
 from .metrics import zero_one
 from .metrics import zero_one_score
+
+from .scorer import Scorer, SCORERS
 
 from . import cluster
 from .cluster import (adjusted_rand_score,
@@ -59,9 +63,11 @@ __all__ = ['accuracy_score',
            'explained_variance_score',
            'f1_score',
            'fbeta_score',
+           'hamming_loss',
            'hinge_loss',
            'homogeneity_completeness_v_measure',
            'homogeneity_score',
+           'jaccard_similarity_score',
            'matthews_corrcoef',
            'mean_squared_error',
            'mean_absolute_error',
@@ -78,4 +84,6 @@ __all__ = ['accuracy_score',
            'silhouette_score',
            'silhouette_samples',
            'v_measure_score',
-           'zero_one_loss']
+           'zero_one_loss',
+           'Scorer',
+           'SCORERS']

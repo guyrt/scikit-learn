@@ -3,7 +3,7 @@ Several basic tests for hierarchical clustering procedures
 
 """
 # Authors: Vincent Michel, 2010, Gael Varoquaux 2012
-# License: BSD-like
+# License: BSD 3 clause
 import warnings
 from tempfile import mkdtemp
 
@@ -172,7 +172,7 @@ def test_connectivity_popagation():
                   (.018, .153), (.018, .153), (.018, .153),
                   (.018, .152), (.018, .149), (.018, .144),
                   ])
-    nn = NearestNeighbors(n_neighbors=10, warn_on_equidistant=False).fit(X)
+    nn = NearestNeighbors(n_neighbors=10).fit(X)
     connectivity = nn.kneighbors_graph(X)
     ward = Ward(n_clusters=4, connectivity=connectivity)
     # If changes are not propagated correctly, fit crashes with an

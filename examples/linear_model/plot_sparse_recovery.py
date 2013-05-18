@@ -38,10 +38,10 @@ In a second time, we set alpha and compare the performance of different
 feature selection methods, using the area under curve (AUC) of the
 precision-recall.
 """
-print __doc__
+print(__doc__)
 
 # Author: Alexandre Gramfort and Gael Varoquaux
-# License: BSD
+# License: BSD 3 clause
 
 import warnings
 
@@ -144,7 +144,7 @@ for conditionning in (1, 1e-4):
     # the model
     alphas = np.linspace(lars_cv.alphas_[0], .1 * lars_cv.alphas_[0], 6)
     clf = RandomizedLasso(alpha=alphas, random_state=42).fit(X, y)
-    trees = ExtraTreesRegressor(100, compute_importances=True).fit(X, y)
+    trees = ExtraTreesRegressor(100).fit(X, y)
     # Compare with F-score
     F, _ = f_regression(X, y)
 

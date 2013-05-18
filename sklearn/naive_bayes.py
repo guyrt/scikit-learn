@@ -13,7 +13,7 @@ are supervised learning methods based on applying Bayes' theorem with strong
 #         Lars Buitinck <L.J.Buitinck@uva.nl>
 #         (parts based on earlier work by Mathieu Blondel)
 #
-# License: BSD Style.
+# License: BSD 3 clause
 
 from abc import ABCMeta, abstractmethod
 
@@ -26,14 +26,13 @@ from .preprocessing import binarize, LabelBinarizer
 from .utils import array2d, atleast2d_or_csr
 from .utils.extmath import safe_sparse_dot, logsumexp
 from .utils import check_arrays
+from .externals import six
 
 __all__ = ['BernoulliNB', 'GaussianNB', 'MultinomialNB']
 
 
-class BaseNB(BaseEstimator, ClassifierMixin):
+class BaseNB(six.with_metaclass(ABCMeta, BaseEstimator, ClassifierMixin)):
     """Abstract base class for naive Bayes estimators"""
-
-    __metaclass__ = ABCMeta
 
     @abstractmethod
     def _joint_log_likelihood(self, X):
@@ -176,7 +175,7 @@ class GaussianNB(BaseNB):
     def _joint_log_likelihood(self, X):
         X = array2d(X)
         joint_log_likelihood = []
-        for i in xrange(np.size(self.classes_)):
+        for i in range(np.size(self.classes_)):
             jointi = np.log(self.class_prior_[i])
             n_ij = - 0.5 * np.sum(np.log(np.pi * self.sigma_[i, :]))
             n_ij -= 0.5 * np.sum(((X - self.theta_[i, :]) ** 2) /

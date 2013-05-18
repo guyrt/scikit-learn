@@ -4,13 +4,14 @@ Quadratic Discriminant Analysis
 
 # Author: Matthieu Perrot <matthieu.perrot@gmail.com>
 #
-# License: BSD Style.
+# License: BSD 3 clause
 
 import warnings
 
 import numpy as np
 
 from .base import BaseEstimator, ClassifierMixin
+from .externals.six.moves import xrange
 from .utils.fixes import unique
 from .utils import check_arrays, array2d
 

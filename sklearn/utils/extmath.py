@@ -2,7 +2,7 @@
 Extended math utilities.
 """
 # Authors: G. Varoquaux, A. Gramfort, A. Passos, O. Grisel
-# License: BSD
+# License: BSD 3 clause
 
 import warnings
 import numpy as np
@@ -10,6 +10,7 @@ from scipy import linalg
 
 from . import check_random_state
 from .fixes import qr_economic
+from ..externals.six.moves import xrange
 
 
 def norm(v):

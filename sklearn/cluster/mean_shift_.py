@@ -8,13 +8,14 @@ Authors: Conrad Lee conradlee@gmail.com
 from collections import defaultdict
 import numpy as np
 
+from ..externals import six
 from ..utils import extmath, check_random_state
 from ..base import BaseEstimator, ClusterMixin
 from ..neighbors import NearestNeighbors
 
 
 def estimate_bandwidth(X, quantile=0.3, n_samples=None, random_state=0):
-    """Estimate the bandwith to use with MeanShift algorithm
+    """Estimate the bandwidth to use with MeanShift algorithm
 
     Parameters
     ----------
@@ -193,7 +194,7 @@ def get_bin_seeds(X, bin_size, min_bin_freq=1):
         bin_sizes[tuple(binned_point)] += 1
 
     # Select only those bins as seeds which have enough members
-    bin_seeds = np.array([point for point, freq in bin_sizes.iteritems() if
+    bin_seeds = np.array([point for point, freq in six.iteritems(bin_sizes) if
                           freq >= min_bin_freq], dtype=np.float32)
     bin_seeds = bin_seeds * bin_size
     return bin_seeds
@@ -205,7 +206,7 @@ class MeanShift(BaseEstimator, ClusterMixin):
     Parameters
     ----------
     bandwidth : float, optional
-        Bandwith used in the RBF kernel
+        Bandwidth used in the RBF kernel
         If not set, the bandwidth is estimated.
         See clustering.estimate_bandwidth.
 

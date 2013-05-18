@@ -5,7 +5,7 @@ sparse Logistic Regression
 
 # Author: Gael Varoquaux, Alexandre Gramfort
 #
-# License: BSD Style.
+# License: BSD 3 clause
 import itertools
 from abc import ABCMeta, abstractmethod
 
@@ -16,12 +16,12 @@ from scipy.interpolate import interp1d
 
 from .base import center_data
 from ..base import BaseEstimator, TransformerMixin
+from ..externals import six
+from ..externals.joblib import Memory, Parallel, delayed
 from ..utils import (as_float_array, check_random_state, safe_asarray,
                      check_arrays, safe_mask)
-from ..externals.joblib import Parallel, delayed
 from .least_angle import lars_path, LassoLarsIC
 from .logistic import LogisticRegression
-from ..externals.joblib import Memory
 
 
 ###############################################################################
@@ -55,14 +55,14 @@ def _resample_model(estimator_func, X, y, scaling=.5, n_resampling=200,
     return scores_
 
 
-class BaseRandomizedLinearModel(BaseEstimator, TransformerMixin):
+class BaseRandomizedLinearModel(six.with_metaclass(ABCMeta, BaseEstimator,
+                                                   TransformerMixin)):
     """Base class to implement randomized linear models for feature selection
 
     This implements the strategy by Meinshausen and Buhlman:
     stability selection with randomized sampling, and random re-weighting of
     the penalty.
     """
-    __metaclass__ = ABCMeta
 
     @abstractmethod
     def __init__(self):
@@ -96,7 +96,7 @@ class BaseRandomizedLinearModel(BaseEstimator, TransformerMixin):
 
         estimator_func, params = self._make_estimator_and_params(X, y)
         memory = self.memory
-        if isinstance(memory, basestring):
+        if isinstance(memory, six.string_types):
             memory = Memory(cachedir=memory)
 
         scores_ = memory.cache(
@@ -209,8 +209,8 @@ class RandomizedLasso(BaseRandomizedLinearModel):
     verbose : boolean or integer, optional
         Sets the verbosity amount
 
-    normalize : boolean, optional
-        If True, the regressors X are normalized
+    normalize : boolean, optional, default False
+        If True, the regressors X will be normalized before regression.
 
     precompute : True | False | 'auto'
         Whether to use a precomputed Gram matrix to speed up
@@ -243,7 +243,7 @@ class RandomizedLasso(BaseRandomizedLinearModel):
         explosion of memory consumption when more jobs get dispatched
         than CPUs can process. This parameter can be:
 
-            - None, in which case all the jobs are immediatly
+            - None, in which case all the jobs are immediately
               created and spawned. Use this for lightweight and
               fast-running jobs, to avoid delays due to on-demand
               spawning of the jobs
@@ -340,7 +340,7 @@ def _randomized_logistic(X, y, weights, mask, C=1., verbose=False,
         weight_dia = sparse.dia_matrix((1 - weights, 0), (size, size))
         X = X * weight_dia
     else:
-        X = (1 - weights) * X
+        X *= (1 - weights)
 
     C = np.atleast_1d(np.asarray(C, dtype=np.float))
     scores = np.zeros((X.shape[1], len(C)), dtype=np.bool)
@@ -383,8 +383,8 @@ class RandomizedLogisticRegression(BaseRandomizedLinearModel):
     verbose : boolean or integer, optional
         Sets the verbosity amount
 
-    normalize : boolean, optional
-        If True, the regressors X are normalized
+    normalize : boolean, optional, default False
+        If True, the regressors X will be normalized before regression.
 
     tol : float, optional
          tolerance for stopping criteria of LogisticRegression
@@ -405,7 +405,7 @@ class RandomizedLogisticRegression(BaseRandomizedLinearModel):
         explosion of memory consumption when more jobs get dispatched
         than CPUs can process. This parameter can be:
 
-            - None, in which case all the jobs are immediatly
+            - None, in which case all the jobs are immediately
               created and spawned. Use this for lightweight and
               fast-running jobs, to avoid delays due to on-demand
               spawning of the jobs
@@ -581,7 +581,7 @@ def lasso_stability_path(X, y, scaling=0.5, random_state=None,
             weights=1. - scaling * rng.random_integers(0, 1,
                                                        size=(n_features,)),
             eps=eps)
-        for k in xrange(n_resampling))
+        for k in range(n_resampling))
 
     all_alphas = sorted(list(set(itertools.chain(*[p[0] for p in paths]))))
     # Take approximately n_grid values

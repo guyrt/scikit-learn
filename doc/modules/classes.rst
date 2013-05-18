@@ -279,6 +279,8 @@ Samples generator
    ensemble.RandomForestRegressor
    ensemble.ExtraTreesClassifier
    ensemble.ExtraTreesRegressor
+   ensemble.AdaBoostClassifier
+   ensemble.AdaBoostRegressor
    ensemble.GradientBoostingClassifier
    ensemble.GradientBoostingRegressor
 
@@ -453,7 +455,9 @@ From text
    :template: class.rst
 
    grid_search.GridSearchCV
-   grid_search.IterGrid
+   grid_search.ParameterGrid
+   grid_search.ParameterSampler
+   grid_search.RandomizedSearchCV
 
 
 .. _hmm_ref:
@@ -662,6 +666,14 @@ user guide for further details.
 
 .. currentmodule:: sklearn
 
+Model Selection Interface
+-------------------------
+.. autosummary::
+   :toctree: generated/
+   :template: class_with_call.rst
+
+   metrics.Scorer
+
 Classification metrics
 ----------------------
 
@@ -677,7 +689,9 @@ Classification metrics
    metrics.confusion_matrix
    metrics.f1_score
    metrics.fbeta_score
+   metrics.hamming_loss
    metrics.hinge_loss
+   metrics.jaccard_similarity_score
    metrics.matthews_corrcoef
    metrics.precision_recall_curve
    metrics.precision_recall_fscore_support
@@ -809,7 +823,6 @@ Pairwise metrics
     multiclass.fit_ecoc
     multiclass.predict_ecoc
 
-
 .. _naive_bayes_ref:
 
 :mod:`sklearn.naive_bayes`: Naive Bayes
@@ -938,6 +951,7 @@ Pairwise metrics
    :template: function.rst
 
    preprocessing.add_dummy_feature
+   preprocessing.balance_weights
    preprocessing.binarize
    preprocessing.normalize
    preprocessing.scale

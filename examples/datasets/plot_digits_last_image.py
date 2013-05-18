@@ -14,12 +14,12 @@ See `here
 <http://archive.ics.uci.edu/ml/datasets/Pen-Based+Recognition+of+Handwritten+Digits>`_
 for more information about this dataset.
 """
-print __doc__
+print(__doc__)
 
 
 # Code source: Gael Varoqueux
 # Modified for Documentation merge by Jaques Grobler
-# License: BSD
+# License: BSD 3 clause
 
 from sklearn import datasets
 

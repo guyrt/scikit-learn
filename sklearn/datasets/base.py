@@ -5,7 +5,7 @@ Base IO code for all datasets
 # Copyright (c) 2007 David Cournapeau <cournape@gmail.com>
 #               2010 Fabian Pedregosa <fabian.pedregosa@inria.fr>
 #               2010 Olivier Grisel <olivier.grisel@ensta.org>
-# License: Simplified BSD
+# License: BSD 3 clause
 
 import os
 import csv
@@ -178,7 +178,7 @@ def load_files(container_path, description=None, categories=None,
         target = target[indices]
 
     if load_content:
-        data = [open(filename).read() for filename in filenames]
+        data = [open(filename, 'rb').read() for filename in filenames]
         if charset is not None:
             data = [d.decode(charset, charse_error) for d in data]
         return Bunch(data=data,
@@ -283,7 +283,7 @@ def load_digits(n_class=10):
 
         >>> from sklearn.datasets import load_digits
         >>> digits = load_digits()
-        >>> print digits.data.shape
+        >>> print(digits.data.shape)
         (1797, 64)
         >>> import pylab as pl #doctest: +SKIP
         >>> pl.gray() #doctest: +SKIP
@@ -391,19 +391,19 @@ def load_boston():
     --------
     >>> from sklearn.datasets import load_boston
     >>> boston = load_boston()
-    >>> print boston.data.shape
+    >>> print(boston.data.shape)
     (506, 13)
     """
     module_path = dirname(__file__)
     data_file = csv.reader(open(join(module_path, 'data',
                                      'boston_house_prices.csv')))
     fdescr = open(join(module_path, 'descr', 'boston_house_prices.rst'))
-    temp = data_file.next()
+    temp = next(data_file)
     n_samples = int(temp[0])
     n_features = int(temp[1])
     data = np.empty((n_samples, n_features))
     target = np.empty((n_samples,))
-    temp = data_file.next()  # names of features
+    temp = next(data_file)  # names of features
     feature_names = np.array(temp)
 
     for i, d in enumerate(data_file):

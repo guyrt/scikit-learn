@@ -14,18 +14,23 @@ multiclass classifier. It is also possible to use these estimators with
 multiclass estimators in the hope that their accuracy or runtime performance
 improves.
 
-The one-vs-the-rest meta-classifier also implements a `predic_proba` method, so
-long as such a method is implemented by the base classifier. This method
+All classifiers in scikit-learn implement multiclass classification; you
+only need to use this module if you want to experiment with custom multiclass
+strategies.
+
+The one-vs-the-rest meta-classifier also implements a `predict_proba` method,
+so long as such a method is implemented by the base classifier. This method
 returns probabilities of class membership in both the single label and
 multilabel case.  Note that in the multilabel case, probabilities are the
 marginal probability that a given sample falls in the given class. As such, in
 the multilabel case the sum of these probabilities over all possible labels
 for a given sample *will not* sum to unity, as they do in the single label
-case.  """
+case.
+"""
 
 # Author: Mathieu Blondel <mathieu@mblondel.org>
 #
-# License: BSD Style.
+# License: BSD 3 clause
 
 import numpy as np
 import warnings
@@ -152,7 +157,6 @@ class OneVsRestClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
         or `predict_proba`.
 
     n_jobs : int, optional, default: 1
-
         The number of jobs to use for the computation. If -1 all CPUs are used.
         If 1 is given, no parallel computing code is used at all, which is
         useful for debugging. For n_jobs below -1, (n_cpus + 1 + n_jobs) are
@@ -304,16 +308,29 @@ def predict_ovo(estimators, classes, X):
     n_samples = X.shape[0]
     n_classes = classes.shape[0]
     votes = np.zeros((n_samples, n_classes))
+    scores = np.zeros((n_samples, n_classes))
 
     k = 0
     for i in range(n_classes):
         for j in range(i + 1, n_classes):
             pred = estimators[k].predict(X)
+            score = _predict_binary(estimators[k], X)
+            scores[:, i] += score
+            scores[:, j] -= score
             votes[pred == 0, i] += 1
             votes[pred == 1, j] += 1
             k += 1
 
-    return classes[votes.argmax(axis=1)]
+    # find all places with maximum votes per sample
+    maxima = votes == np.max(votes, axis=1)[:, np.newaxis]
+
+    # if there are ties, use scores to break them
+    if np.any(maxima.sum(axis=1) > 1):
+        scores[~maxima] = -np.inf
+        prediction = scores.argmax(axis=1)
+    else:
+        prediction = votes.argmax(axis=1)
+    return classes[prediction]
 
 
 class OneVsOneClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
@@ -335,7 +352,6 @@ class OneVsOneClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
         An estimator object implementing `fit` and `predict`.
 
     n_jobs : int, optional, default: 1
-
         The number of jobs to use for the computation. If -1 all CPUs are used.
         If 1 is given, no parallel computing code is used at all, which is
         useful for debugging. For n_jobs below -1, (n_cpus + 1 + n_jobs) are
@@ -440,7 +456,7 @@ def fit_ecoc(estimator, X, y, code_size=1.5, random_state=None, n_jobs=1):
 
     cls_idx = dict((c, i) for i, c in enumerate(classes))
 
-    Y = np.array([code_book[cls_idx[y[i]]] for i in xrange(X.shape[0])],
+    Y = np.array([code_book[cls_idx[y[i]]] for i in range(X.shape[0])],
                  dtype=np.int)
 
     estimators = Parallel(n_jobs=n_jobs)(
@@ -486,7 +502,6 @@ class OutputCodeClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
         numpy.random.
 
     n_jobs : int, optional, default: 1
-
         The number of jobs to use for the computation. If -1 all CPUs are used.
         If 1 is given, no parallel computing code is used at all, which is
         useful for debugging. For n_jobs below -1, (n_cpus + 1 + n_jobs) are

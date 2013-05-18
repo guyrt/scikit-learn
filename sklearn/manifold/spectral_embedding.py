@@ -2,7 +2,7 @@
 
 # Author: Gael Varoquaux <gael.varoquaux@normalesup.org>
 #         Wei LI <kuantkid@gmail.com>
-# License: BSD Style.
+# License: BSD 3 clause
 
 import warnings
 import numpy as np
@@ -12,6 +12,7 @@ from scipy.sparse.linalg import lobpcg
 from scipy.sparse.linalg.eigen.lobpcg.lobpcg import symeig
 
 from ..base import BaseEstimator, TransformerMixin
+from ..externals import six
 from ..utils import check_random_state
 from ..utils.validation import atleast2d_or_csr
 from ..utils.graph import graph_laplacian
@@ -103,7 +104,7 @@ def _set_diag(laplacian, value):
         diag_idx = (laplacian.row == laplacian.col)
         laplacian.data[diag_idx] = value
         # If the matrix has a small number of diagonals (as in the
-        # case of structured matrices comming from images), the
+        # case of structured matrices coming from images), the
         # dia format might be best suited for matvec products:
         n_diags = np.unique(laplacian.row - laplacian.col).size
         if n_diags <= 7:
@@ -412,19 +413,18 @@ class SpectralEmbedding(BaseEstimator, TransformerMixin):
                               "rbf affinity")
                 self.affinity = "rbf"
             else:
-                if self.gamma is None:
-                    self.gamma = 1.0 / X.shape[1]
-                if self.n_neighbors is None:
-                    self.n_neighbors = max(int(X.shape[0] / 10), 1)
-                self.affinity_matrix_ = kneighbors_graph(X, self.n_neighbors)
+                self.n_neighbors_ = (self.n_neighbors
+                                     if self.n_neighbors is not None
+                                     else max(int(X.shape[0] / 10), 1))
+                self.affinity_matrix_ = kneighbors_graph(X, self.n_neighbors_)
                 # currently only symmetric affinity_matrix supported
                 self.affinity_matrix_ = 0.5 * (self.affinity_matrix_ +
                                                self.affinity_matrix_.T)
                 return self.affinity_matrix_
         if self.affinity == 'rbf':
-            if self.gamma is None:
-                self.gamma = 1.0 / X.shape[1]
-            self.affinity_matrix_ = rbf_kernel(X, gamma=self.gamma)
+            self.gamma_ = (self.gamma
+                           if self.gamma is not None else 1.0 / X.shape[1])
+            self.affinity_matrix_ = rbf_kernel(X, gamma=self.gamma_)
             return self.affinity_matrix_
         self.affinity_matrix_ = self.affinity(X)
         return self.affinity_matrix_
@@ -448,14 +448,14 @@ class SpectralEmbedding(BaseEstimator, TransformerMixin):
         self : object
             Returns the instance itself.
         """
-        self.random_state = check_random_state(self.random_state)
-        if isinstance(self.affinity, basestring):
+        random_state = check_random_state(self.random_state)
+        if isinstance(self.affinity, six.string_types):
             if self.affinity not in set(("nearest_neighbors", "rbf",
                                          "precomputed")):
                 raise ValueError(("%s is not a valid affinity. Expected "
                                   "'precomputed', 'rbf', 'nearest_neighbors' "
                                   "or a callable.") % self.affinity)
-        elif not hasattr(self.affinity, "__call__"):
+        elif not callable(self.affinity):
             raise ValueError(("'affinity' is expected to be an an affinity "
                               "name or a callable. Got: %s") % self.affinity)
 
@@ -463,7 +463,7 @@ class SpectralEmbedding(BaseEstimator, TransformerMixin):
         self.embedding_ = spectral_embedding(affinity_matrix,
                                              n_components=self.n_components,
                                              eigen_solver=self.eigen_solver,
-                                             random_state=self.random_state)
+                                             random_state=random_state)
         return self
 
     def fit_transform(self, X, y=None):

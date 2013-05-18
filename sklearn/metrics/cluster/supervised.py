@@ -6,7 +6,8 @@ better.
 
 # Authors: Olivier Grisel <olivier.grisel@ensta.org>
 #          Wei LI <kuantkid@gmail.com>
-# License: BSD Style.
+#          Diego Molla <dmolla-aliod@gmail.com>
+# License: BSD 3 clause
 
 from math import log
 
@@ -56,7 +57,7 @@ def contingency_matrix(labels_true, labels_pred, eps=None):
 
     eps: None or float
         If a float, that value is added to all values in the contingency
-        matrix. This helps to stop NaN propogation.
+        matrix. This helps to stop NaN propagation.
         If ``None``, nothing is adjusted.
 
     Returns
@@ -169,10 +170,12 @@ def adjusted_rand_score(labels_true, labels_pred):
     n_samples = labels_true.shape[0]
     classes = np.unique(labels_true)
     clusters = np.unique(labels_pred)
-    # Special limit cases: no clustering since the data is not split.
-    # This is a perfect match hence return 1.0.
+    # Special limit cases: no clustering since the data is not split;
+    # or trivial clustering where each document is assigned a unique cluster.
+    # These are perfect matches hence return 1.0.
     if (classes.shape[0] == clusters.shape[0] == 1
-            or classes.shape[0] == clusters.shape[0] == 0):
+            or classes.shape[0] == clusters.shape[0] == 0
+            or classes.shape[0] == clusters.shape[0] == len(labels_true)):
         return 1.0
 
     contingency = contingency_matrix(labels_true, labels_pred)
@@ -306,23 +309,23 @@ def homogeneity_score(labels_true, labels_pred):
       >>> homogeneity_score([0, 0, 1, 1], [1, 1, 0, 0])
       1.0
 
-    Non-pefect labelings that futher split classes into more clusters can be
+    Non-pefect labelings that further split classes into more clusters can be
     perfectly homogeneous::
 
-      >>> print ("%.6f" % homogeneity_score([0, 0, 1, 1], [0, 0, 1, 2]))
+      >>> print("%.6f" % homogeneity_score([0, 0, 1, 1], [0, 0, 1, 2]))
       ...                                                  # doctest: +ELLIPSIS
       1.0...
-      >>> print ("%.6f" % homogeneity_score([0, 0, 1, 1], [0, 1, 2, 3]))
+      >>> print("%.6f" % homogeneity_score([0, 0, 1, 1], [0, 1, 2, 3]))
       ...                                                  # doctest: +ELLIPSIS
       1.0...
 
     Clusters that include samples from different classes do not make for an
     homogeneous labeling::
 
-      >>> print ("%.6f" % homogeneity_score([0, 0, 1, 1], [0, 1, 0, 1]))
+      >>> print("%.6f" % homogeneity_score([0, 0, 1, 1], [0, 1, 0, 1]))
       ...                                                  # doctest: +ELLIPSIS
       0.0...
-      >>> print ("%.6f" % homogeneity_score([0, 0, 1, 1], [0, 0, 0, 0]))
+      >>> print("%.6f" % homogeneity_score([0, 0, 1, 1], [0, 0, 0, 0]))
       ...                                                  # doctest: +ELLIPSIS
       0.0...
 
@@ -381,17 +384,17 @@ def completeness_score(labels_true, labels_pred):
     Non-pefect labelings that assign all classes members to the same clusters
     are still complete::
 
-      >>> print completeness_score([0, 0, 1, 1], [0, 0, 0, 0])
+      >>> print(completeness_score([0, 0, 1, 1], [0, 0, 0, 0]))
       1.0
-      >>> print completeness_score([0, 1, 2, 3], [0, 0, 1, 1])
+      >>> print(completeness_score([0, 1, 2, 3], [0, 0, 1, 1]))
       1.0
 
     If classes members are splitted across different clusters, the
     assignment cannot be complete::
 
-      >>> print completeness_score([0, 0, 1, 1], [0, 1, 0, 1])
+      >>> print(completeness_score([0, 0, 1, 1], [0, 1, 0, 1]))
       0.0
-      >>> print completeness_score([0, 0, 0, 0], [0, 1, 2, 3])
+      >>> print(completeness_score([0, 0, 0, 0], [0, 1, 2, 3]))
       0.0
 
     """
@@ -496,8 +499,8 @@ def mutual_info_score(labels_true, labels_pred, contingency=None):
 
     The Mutual Information is a measure of the similarity between two labels of
     the same data. Where :math:`P(i)` is the probability of a random sample
-    occuring in cluster :math:`U_i` and :math:`P'(j)` is the probability of a
-    random sample occuring in cluster :math:`V_j`, the Mutual Information
+    occurring in cluster :math:`U_i` and :math:`P'(j)` is the probability of a
+    random sample occurring in cluster :math:`V_j`, the Mutual Information
     between clusterings :math:`U` and :math:`V` is given as:
 
     .. math::
