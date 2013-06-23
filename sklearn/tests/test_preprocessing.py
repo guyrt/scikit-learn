@@ -23,7 +23,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import scale
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import add_dummy_feature
-from sklearn.preprocessing import balance_weights
 
 from sklearn import datasets
 from sklearn.linear_model.stochastic_gradient import SGDClassifier
@@ -422,9 +421,9 @@ def test_normalize_errors():
 
 
 def test_binarizer():
-    X_ = np.array([[1, 0, 5], [2, 3, 0]])
+    X_ = np.array([[1, 0, 5], [2, 3, -1]])
 
-    for init in (np.array, sp.csr_matrix, sp.csc_matrix):
+    for init in (np.array, list, sp.csr_matrix, sp.csc_matrix):
 
         X = init(X_.copy())
 
@@ -433,7 +432,7 @@ def test_binarizer():
         assert_equal(np.sum(X_bin == 0), 4)
         assert_equal(np.sum(X_bin == 1), 2)
         X_bin = binarizer.transform(X)
-        assert_equal(type(X), type(X_bin))
+        assert_equal(sp.issparse(X), sp.issparse(X_bin))
 
         binarizer = Binarizer(copy=True).fit(X)
         X_bin = toarray(binarizer.transform(X))
@@ -450,10 +449,23 @@ def test_binarizer():
 
         binarizer = Binarizer(copy=False)
         X_bin = binarizer.transform(X)
-        assert_true(X_bin is X)
+        if init is not list:
+            assert_true(X_bin is X)
         X_bin = toarray(X_bin)
         assert_equal(np.sum(X_bin == 0), 2)
         assert_equal(np.sum(X_bin == 1), 4)
+
+    binarizer = Binarizer(threshold=-0.5, copy=True)
+    for init in (np.array, list):
+        X = init(X_.copy())
+
+        X_bin = toarray(binarizer.transform(X))
+        assert_equal(np.sum(X_bin == 0), 1)
+        assert_equal(np.sum(X_bin == 1), 5)
+        X_bin = binarizer.transform(X)
+
+    # Cannot use threshold < 0 for sparse
+    assert_raises(ValueError, binarizer.transform, sp.csc_matrix(X))
 
 
 def test_label_binarizer():
@@ -725,14 +737,3 @@ def test_add_dummy_feature_csr():
     X = add_dummy_feature(X)
     assert_true(sp.isspmatrix_csr(X), X)
     assert_array_equal(X.toarray(), [[1, 1, 0], [1, 0, 1], [1, 0, 1]])
-
-
-def test_balance_weights():
-    weights = balance_weights([0, 0, 1, 1])
-    assert_array_equal(weights, [1., 1., 1., 1.])
-
-    weights = balance_weights([0, 1, 1, 1, 1])
-    assert_array_equal(weights, [1., 0.25, 0.25, 0.25, 0.25])
-
-    weights = balance_weights([0, 0])
-    assert_array_equal(weights, [1., 1.])

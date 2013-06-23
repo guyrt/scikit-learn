@@ -217,6 +217,7 @@ Samples generator
    decomposition.KernelPCA
    decomposition.FactorAnalysis
    decomposition.FastICA
+   decomposition.TruncatedSVD
    decomposition.NMF
    decomposition.SparsePCA
    decomposition.MiniBatchSparsePCA
@@ -951,7 +952,6 @@ Pairwise metrics
    :template: function.rst
 
    preprocessing.add_dummy_feature
-   preprocessing.balance_weights
    preprocessing.binarize
    preprocessing.normalize
    preprocessing.scale
